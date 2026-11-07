@@ -23,6 +23,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QFileOpenEvent>
+#include <QFont>
 #include <QObject>
 #include <QStringList>
 #include <QTextStream>
@@ -65,6 +66,11 @@ protected:
 
 int main(int argc, char **argv)
 {
+#ifdef Q_OS_WIN
+    // Select the font engine before QApplication initializes the Windows platform plugin.
+    qputenv("QT_QPA_PLATFORM", "windows:fontengine=freetype");
+#endif
+
     /**
      * trigger initialisation of proper icon theme
      */
@@ -97,6 +103,15 @@ int main(int argc, char **argv)
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
     QApplication::setStyle(QStringLiteral("breeze"));
 #endif
+#endif
+
+#ifdef Q_OS_WIN
+    QFont uiFont = QApplication::font();
+    uiFont.setFamily(QStringLiteral("PingFang SC"));
+    uiFont.setStyleName(QString());
+    uiFont.setWeight(QFont::Normal);
+    uiFont.setStyle(QFont::StyleNormal);
+    QApplication::setFont(uiFont);
 #endif
 
     KAboutData aboutData = okularAboutData();
