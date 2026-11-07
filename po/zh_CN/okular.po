@@ -6034,3 +6034,126 @@ msgstr "外观与阅读空间"
 
 msgid "Focus Main Toolbar"
 msgstr "聚焦主工具栏"
+
+msgid "Paper appearance preview"
+msgstr "纸张外观预览"
+
+msgid "A comfortable place to read"
+msgstr "让阅读更舒适"
+
+msgid "Text, diagrams and ideas.\nPingFang SC · Regular"
+msgstr "文字、图表与思考。\n苹方-简 · 常规体"
+
+msgid "Mist"
+msgstr "雾白"
+
+msgid "Warm paper"
+msgstr "暖纸"
+
+msgid "Glacier"
+msgstr "冰川"
+
+msgid "Dunes"
+msgstr "沙丘"
+
+msgid "Manage Appearances…"
+msgstr "管理外观…"
+
+msgid "New Appearance…"
+msgstr "新建外观…"
+
+msgid "Import Appearance…"
+msgstr "导入外观…"
+
+msgid "Interface"
+msgstr "界面"
+
+msgid "Interface font:"
+msgstr "界面字体："
+
+msgid "PingFang SC · Regular"
+msgstr "苹方-简 · 常规体"
+
+msgid "Accent color:"
+msgstr "强调色："
+
+msgid "Paper Background"
+msgstr "纸张背景"
+
+msgid "Paper color:"
+msgstr "纸张颜色："
+
+msgid "Solid color"
+msgstr "纯色"
+
+msgid "Acrylic"
+msgstr "亚克力"
+
+msgid "Material:"
+msgstr "材质："
+
+msgid "Opacity:"
+msgstr "不透明度："
+
+msgid "Blur:"
+msgstr "模糊强度："
+
+msgid " px"
+msgstr " 像素"
+
+msgid "Choose Background Image…"
+msgstr "选择背景图片…"
+
+msgid "Use Preset Background"
+msgstr "使用预设背景"
+
+msgid "The saved appearance library could not be read."
+msgstr "无法读取已保存的外观库。"
+
+msgid "The saved appearance library contains an invalid appearance."
+msgstr "已保存的外观库中存在无效外观。"
+
+msgid "Appearance Library"
+msgstr "外观库"
+
+msgid "Use Appearance"
+msgstr "使用此外观"
+
+msgid "My appearance"
+msgstr "我的外观"
+
+msgid "New Appearance"
+msgstr "新建外观"
+
+msgid "Create and Use"
+msgstr "创建并使用"
+
+msgid "Import Appearance"
+msgstr "导入外观"
+
+msgid "Okular Appearance (*.json)"
+msgstr "Okular 外观 (*.json)"
+
+msgid "Appearance files must be smaller than 64 KB."
+msgstr "外观文件应小于 64 KB。"
+
+msgid "Choose a valid Okular appearance file (version 1)."
+msgstr "请选择有效的 Okular 外观文件（版本 1）。"
+
+msgid "Import and Use"
+msgstr "导入并使用"
+
+msgid "Choose Background Image"
+msgstr "选择背景图片"
+
+msgid "Images (*.png *.jpg *.jpeg *.webp)"
+msgstr "图片 (*.png *.jpg *.jpeg *.webp)"
+
+msgid "Choose a PNG, JPEG or WebP image smaller than 2 MB."
+msgstr "请选择小于 2 MB 的 PNG、JPEG 或 WebP 图片。"
+
+msgid "Bookmark name:"
+msgstr "书签名称："
+
+msgid "Done"
+msgstr "完成"

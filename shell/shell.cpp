@@ -947,7 +947,7 @@ void Shell::applyAppearance()
         return;
     }
     const auto *viewer = qobject_cast<Okular::ViewerInterface *>(m_tabs[tab].part);
-    DesktopAppearance::instance()->setTheme(viewer->interfaceTheme());
+    DesktopAppearance::instance()->setTheme(viewer->interfaceTheme(), viewer->interfaceAccent());
     KToolBar *mainToolbar = toolBar(QStringLiteral("mainToolBar"));
     mainToolbar->setIconSize(QSize(20, 20));
     mainToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);

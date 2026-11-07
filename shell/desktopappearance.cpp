@@ -27,10 +27,11 @@ DesktopAppearance::DesktopAppearance(QObject *parent)
     });
 }
 
-void DesktopAppearance::setTheme(int theme)
+void DesktopAppearance::setTheme(int theme, const QColor &accent)
 {
-    if (m_theme != theme) {
+    if (m_theme != theme || m_accent != accent) {
         m_theme = theme;
+        m_accent = accent;
         apply();
     }
 }
@@ -42,7 +43,7 @@ void DesktopAppearance::apply()
     const QColor field(dark ? "#20242B" : "#FCFCFD");
     const QColor text(dark ? "#F0F2F5" : "#252D38");
     const QColor muted(dark ? "#969FAB" : "#7C8592");
-    const QColor accent(QStringLiteral("#0A84FF"));
+    const QColor accent = m_accent;
     QPalette palette;
     palette.setColor(QPalette::Window, surface);
     palette.setColor(QPalette::WindowText, text);
@@ -97,6 +98,7 @@ void DesktopAppearance::apply()
         QToolTip { background: @surface; color: @text; border: 1px solid @line; border-radius: 4px; padding: 5px 8px; }
     )");
     css.replace(QLatin1String("@surface"), surface.name());
+    css.replace(QLatin1String("#0A84FF"), accent.name());
     css.replace(QLatin1String("@field"), field.name());
     css.replace(QLatin1String("@text"), text.name());
     css.replace(QLatin1String("@muted"), muted.name());

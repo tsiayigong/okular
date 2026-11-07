@@ -54,6 +54,7 @@ private:
     QTreeWidgetItem *itemForUrl(const QUrl &url) const;
     void contextMenuForBookmarkItem(const QPoint p, BookmarkItem *bmItem);
     void contextMenuForFileItem(const QPoint p, FileItem *fItem);
+    void renameItem(QTreeWidgetItem *item);
 
     Okular::Document *m_document;
     QTreeWidget *m_tree;

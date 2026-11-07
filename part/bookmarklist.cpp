@@ -11,10 +11,19 @@
 #include <QCheckBox>
 #include <QCursor>
 #include <QDebug>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QGuiApplication>
 #include <QHeaderView>
 #include <QIcon>
+#include <QLabel>
 #include <QLayout>
+#include <QLineEdit>
 #include <QMenu>
+#include <QPersistentModelIndex>
+#include <QPushButton>
+#include <QScreen>
+#include <QShortcut>
 #include <QToolButton>
 #include <QTreeWidget>
 
@@ -155,7 +164,12 @@ BookmarkList::BookmarkList(Okular::Document *document, QWidget *parent)
     m_tree->setItemDelegate(new PageItemDelegate(m_tree));
     m_tree->header()->hide();
     m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_tree->setEditTriggers(QAbstractItemView::EditKeyPressed);
+    m_tree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    auto *rename = new QShortcut(QKeySequence(Qt::Key_F2), m_tree);
+    rename->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(rename, &QShortcut::activated, this, [this] {
+        renameItem(m_tree->currentItem());
+    });
     connect(m_tree, &QTreeWidget::itemActivated, this, &BookmarkList::slotExecuted);
     connect(m_tree, &QTreeWidget::customContextMenuRequested, this, &BookmarkList::slotContextMenu);
     m_searchLine->setTreeView(static_cast<QTreeView *>(m_tree));
@@ -260,7 +274,8 @@ void BookmarkList::contextMenuForBookmarkItem(const QPoint p, BookmarkItem *bmIt
     const QAction *collapseall = menu.addAction(i18n("Collapse All"));
     const QAction *gotobm = menu.addAction(i18n("Go to This Bookmark"));
     const QAction *editbm = menu.addAction(QIcon::fromTheme(QStringLiteral("edit-rename")), i18n("Rename Bookmark"));
-    const QAction *removebm = menu.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))), i18n("Remove Bookmark"));
+    const QAction *removebm =
+        menu.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))), i18n("Remove Bookmark"));
     const QAction *res = menu.exec(QCursor::pos());
     if (!res) {
         return;
@@ -273,7 +288,7 @@ void BookmarkList::contextMenuForBookmarkItem(const QPoint p, BookmarkItem *bmIt
     } else if (res == gotobm) {
         goTo(bmItem);
     } else if (res == editbm) {
-        m_tree->editItem(bmItem, 0);
+        renameItem(bmItem);
     } else if (res == removebm) {
         m_document->bookmarkManager()->removeBookmark(bmItem->url(), bmItem->bookmark());
     }
@@ -297,7 +312,8 @@ void BookmarkList::contextMenuForFileItem(const QPoint p, FileItem *fItem)
         open = menu.addAction(i18nc("Opens the selected document", "Open Document"));
     }
     const QAction *editbm = menu.addAction(QIcon::fromTheme(QStringLiteral("edit-rename")), i18n("Rename Bookmark"));
-    const QAction *removebm = menu.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))), i18n("Remove all Bookmarks for this Document"));
+    const QAction *removebm = menu.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))),
+                                             i18n("Remove all Bookmarks for this Document"));
     const QAction *res = menu.exec(QCursor::pos());
     if (!res) {
         return;
@@ -311,13 +327,57 @@ void BookmarkList::contextMenuForFileItem(const QPoint p, FileItem *fItem)
         Okular::GotoAction action(itemurl.toDisplayString(QUrl::PreferLocalFile), Okular::DocumentViewport());
         m_document->processAction(&action);
     } else if (res == editbm) {
-        m_tree->editItem(fItem, 0);
+        renameItem(fItem);
     } else if (res == removebm) {
         KBookmark::List list;
         for (int i = 0; i < fItem->childCount(); ++i) {
             list.append(static_cast<BookmarkItem *>(fItem->child(i))->bookmark());
         }
         m_document->bookmarkManager()->removeBookmarks(itemurl, list);
+    }
+}
+
+void BookmarkList::renameItem(QTreeWidgetItem *item)
+{
+    if (!item) {
+        return;
+    }
+    m_tree->setCurrentItem(item);
+    const QPersistentModelIndex index(m_tree->currentIndex());
+    const QRect anchor(m_tree->viewport()->mapToGlobal(m_tree->visualItemRect(item).topLeft()), m_tree->visualItemRect(item).size());
+    QDialog popup(this, Qt::Popup);
+    popup.setObjectName(QStringLiteral("bookmarkRenamePopup"));
+    popup.setWindowTitle(i18n("Rename Bookmark"));
+    popup.setFixedWidth(252);
+    auto *layout = new QVBoxLayout(&popup);
+    layout->setContentsMargins(12, 10, 12, 10);
+    layout->setSpacing(8);
+    auto *label = new QLabel(i18n("Bookmark name:"), &popup);
+    auto *name = new QLineEdit(item->text(0), &popup);
+    name->setObjectName(QStringLiteral("bookmarkName"));
+    label->setBuddy(name);
+    layout->addWidget(label);
+    layout->addWidget(name);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel | QDialogButtonBox::Ok, &popup);
+    buttons->button(QDialogButtonBox::Ok)->setText(i18n("Done"));
+    layout->addWidget(buttons);
+    connect(name, &QLineEdit::textChanged, &popup, [buttons](const QString &text) {
+        buttons->button(QDialogButtonBox::Ok)->setEnabled(!text.trimmed().isEmpty());
+    });
+    connect(buttons, &QDialogButtonBox::accepted, &popup, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &popup, &QDialog::reject);
+    popup.adjustSize();
+    const QRect available = m_tree->screen()->availableGeometry();
+    int x = anchor.right() + 8;
+    if (x + popup.width() > available.right()) {
+        x = anchor.left() - popup.width() - 8;
+    }
+    const int y = qBound(available.top(), anchor.top(), available.bottom() - popup.height());
+    popup.move(qMax(available.left(), x), y);
+    name->selectAll();
+    name->setFocus();
+    if (popup.exec() == QDialog::Accepted && index.isValid()) {
+        m_tree->model()->setData(index, name->text().trimmed(), Qt::EditRole);
     }
 }
 

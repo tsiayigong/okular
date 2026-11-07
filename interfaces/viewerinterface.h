@@ -14,6 +14,7 @@
 #define VIEWERINTERFACE_EXPORT OKULARCORE_EXPORT
 #endif
 
+#include <QColor>
 #include <QObject>
 #include <QString>
 
@@ -80,6 +81,7 @@ public:
     virtual bool openNewFilesInTabs() const = 0;
 
     virtual int interfaceTheme() const = 0;
+    virtual QColor interfaceAccent() const = 0;
     virtual bool autoHideMainToolBar() const = 0;
 
     /**
@@ -109,6 +111,6 @@ public:
 
 }
 
-Q_DECLARE_INTERFACE(Okular::ViewerInterface, "org.kde.okular.ViewerInterface/0.2")
+Q_DECLARE_INTERFACE(Okular::ViewerInterface, "org.kde.okular.ViewerInterface/0.3")
 
 #endif

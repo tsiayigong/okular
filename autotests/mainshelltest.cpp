@@ -9,6 +9,7 @@
 #include <QTest>
 #include <config-okular.h>
 
+#include <KColorButton>
 #include <KConfigGroup>
 #include <KLineEdit>
 #include <KLocalizedString>
@@ -19,11 +20,15 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #endif // HAVE_DBUS
-#include <QPrintDialog>
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QListWidget>
+#include <QPrintDialog>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTabBar>
@@ -35,15 +40,15 @@
 #include "../core/document_p.h"
 #include "../core/page.h"
 #include "../part/findbar.h"
-#include "../part/part.h"
 #include "../part/pageview.h"
-#include "../part/thumbnaillist.h"
-#include "../shell/toolbarautohide.h"
+#include "../part/part.h"
 #include "../part/presentationwidget.h"
+#include "../part/thumbnaillist.h"
 #include "../settings.h"
 #include "../shell/okular_main.h"
 #include "../shell/shell.h"
 #include "../shell/shellutils.h"
+#include "../shell/toolbarautohide.h"
 #include "closedialoghelper.h"
 
 #include <sys/types.h>
@@ -134,6 +139,7 @@ private Q_SLOTS:
     void testOpenInvalidFiles();
     void testOpenTheSameFileSeveralTimes();
     void testDesktopAppearance();
+    void testAppearanceLibrary();
 
 private:
 };
@@ -302,6 +308,79 @@ void MainShellTest::testDesktopAppearance()
     QVERIFY(!shell->toolBar()->isVisible());
 }
 
+void MainShellTest::testAppearanceLibrary()
+{
+    auto *shell = new Shell;
+    QVERIFY(shell->isValid());
+    shell->resize(1280, 850);
+    shell->show();
+    QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/file1.pdf")), QString()));
+    auto *part = qobject_cast<Okular::Part *>(shell->m_tabs[0].part);
+    QTRY_VERIFY(pageAndThumbnailRendered(part));
+    QVERIFY(QMetaObject::invokeMethod(part, "slotPreferences"));
+    auto *preferences = shell->findChild<QDialog *>(QStringLiteral("preferences"));
+    QVERIFY(preferences);
+    auto *manage = preferences->findChild<QPushButton *>(QStringLiteral("manageAppearances"));
+    QVERIFY(manage);
+    bool selectedPreset = false;
+    QTimer::singleShot(0, [&] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (!dialog || dialog == preferences) {
+            return;
+        }
+        auto *list = dialog->findChild<QListWidget *>(QStringLiteral("appearancePresetList"));
+        if (list && list->count() >= 3) {
+            list->setCurrentRow(1);
+            selectedPreset = true;
+        }
+        dialog->accept();
+    });
+    manage->click();
+    QVERIFY(selectedPreset);
+    auto *paper = preferences->findChild<KColorButton *>(QStringLiteral("kcfg_PaperColor"));
+    QVERIFY(paper);
+    QCOMPARE(paper->color(), QColor(QStringLiteral("#F4EEE2")));
+    QCOMPARE(Okular::Settings::paperColor(), QColor(QStringLiteral("#FAFAF8")));
+
+    auto *create = preferences->findChild<QPushButton *>(QStringLiteral("createAppearance"));
+    QVERIFY(create);
+    bool createdPreset = false;
+    QTimer::singleShot(0, [&] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (!dialog || dialog == preferences) {
+            return;
+        }
+        auto *name = dialog->findChild<QLineEdit *>(QStringLiteral("appearanceName"));
+        if (name) {
+            name->setText(QStringLiteral("Research paper"));
+            createdPreset = true;
+        }
+        dialog->accept();
+    });
+    create->click();
+    QVERIFY(createdPreset);
+    QCOMPARE(Okular::Settings::customAppearances(), QStringLiteral("[]"));
+    auto *buttons = preferences->findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    buttons->button(QDialogButtonBox::Ok)->click();
+    QTRY_COMPARE(Okular::Settings::paperColor(), QColor(QStringLiteral("#F4EEE2")));
+    QCOMPARE(QApplication::palette().color(QPalette::Highlight), QColor(QStringLiteral("#99724B")));
+    const auto saved = QJsonDocument::fromJson(Okular::Settings::customAppearances().toUtf8()).array();
+    QCOMPARE(saved.size(), 1);
+    QCOMPARE(saved.first().toObject().value(QStringLiteral("name")).toString(), QStringLiteral("Research paper"));
+    QTRY_VERIFY(containsPaperColor(pageViewport(part), QColor(QStringLiteral("#F4EEE2"))));
+    QTRY_VERIFY(containsPaperColor(thumbnailViewport(part), QColor(QStringLiteral("#F4EEE2"))));
+
+    QVERIFY(QMetaObject::invokeMethod(part, "slotPreferences"));
+    preferences = shell->findChild<QDialog *>(QStringLiteral("preferences"));
+    QVERIFY(preferences);
+    paper = preferences->findChild<KColorButton *>(QStringLiteral("appearancePaperColor"));
+    QVERIFY(paper);
+    paper->setColor(QColor(QStringLiteral("#EECCAA")));
+    preferences->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Cancel)->click();
+    QCOMPARE(Okular::Settings::paperColor(), QColor(QStringLiteral("#F4EEE2")));
+}
+
 void MainShellTest::testShell_data()
 {
     QTest::addColumn<QStringList>("paths");
@@ -328,32 +407,47 @@ void MainShellTest::testShell_data()
     const QString optionsPage2Presentation = ShellUtils::serializeOptions(true, false, false, false, false, QStringLiteral("2"), QString(), QString());
     const QString optionsPrint = ShellUtils::serializeOptions(false, true, false, false, false, QString(), QString(), QString());
     const QString optionsUnique = ShellUtils::serializeOptions(false, false, false, true, false, QString(), QString(), QString());
-    const QString optionsFind = ShellUtils::serializeOptions(false, false, false, false, false, QString(), QStringLiteral("si:next-testing parameters!"), QString());
+    const QString optionsFind =
+        ShellUtils::serializeOptions(false, false, false, false, false, QString(), QStringLiteral("si:next-testing parameters!"), QString());
 
     QTest::newRow("just show shell") << QStringList() << QString() << false << QString() << 0u << false << false << false << 0u << false << false << QString();
     QTest::newRow("open file") << file1 << QString() << false << QString() << 0u << false << false << false << 0u << false << false << QString();
     QTest::newRow("two files no tabs") << file1AndToc << QString() << false << QString() << 0u << false << false << false << 0u << false << false << QString();
     QTest::newRow("two files with tabs") << file1AndToc << QString() << true << QString() << 0u << false << false << false << 0u << false << false << QString();
-    QTest::newRow("two files sequence no tabs") << file1 << QString() << false << tocReload << 0u << false << false << false << 0u << false << false << QString();
+    QTest::newRow("two files sequence no tabs") << file1 << QString() << false << tocReload << 0u << false << false << false << 0u << false << false
+                                                << QString();
 #if HAVE_DBUS
-    QTest::newRow("two files sequence with tabs") << file1 << QString() << true << tocReload << 0u << false << false << false << 0u << false << false << QString();
+    QTest::newRow("two files sequence with tabs") << file1 << QString() << true << tocReload << 0u << false << false << false << 0u << false << false
+                                                  << QString();
 #endif // HAVE_DBUS
-    QTest::newRow("open file page number") << contentsEpub << optionsPage2 << false << QString() << 1u << false << false << false << 0u << false << false << QString();
-    QTest::newRow("open file page number and presentation") << contentsEpub << optionsPage2Presentation << false << QString() << 1u << true << false << false << 0u << false << false << QString();
-    QTest::newRow("open file find") << file1 << optionsFind << false << QString() << 0u << false << false << false << 0u << false << false << QStringLiteral("si:next-testing parameters!");
+    QTest::newRow("open file page number") << contentsEpub << optionsPage2 << false << QString() << 1u << false << false << false << 0u << false << false
+                                           << QString();
+    QTest::newRow("open file page number and presentation")
+        << contentsEpub << optionsPage2Presentation << false << QString() << 1u << true << false << false << 0u << false << false << QString();
+    QTest::newRow("open file find") << file1 << optionsFind << false << QString() << 0u << false << false << false << 0u << false << false
+                                    << QStringLiteral("si:next-testing parameters!");
     QTest::newRow("open file print") << file1 << optionsPrint << false << QString() << 0u << false << true << false << 0u << false << false << QString();
 #if HAVE_DBUS
     QTest::newRow("open two files unique") << file1 << optionsUnique << false << tocReload << 0u << false << false << true << 0u << false << false << QString();
-    QTest::newRow("open two files unique tabs") << file1 << optionsUnique << true << tocReload << 0u << false << false << true << 0u << false << false << QString();
-    QTest::newRow("page number attach tabs") << file1 << QString() << true << contentsEpub[0] << 0u << false << false << false << 2u << false << false << QString();
-    QTest::newRow("presentation attach tabs") << file1 << QString() << true << contentsEpub[0] << 0u << false << false << false << 2u << true << false << QString();
+    QTest::newRow("open two files unique tabs") << file1 << optionsUnique << true << tocReload << 0u << false << false << true << 0u << false << false
+                                                << QString();
+    QTest::newRow("page number attach tabs") << file1 << QString() << true << contentsEpub[0] << 0u << false << false << false << 2u << false << false
+                                             << QString();
+    QTest::newRow("presentation attach tabs") << file1 << QString() << true << contentsEpub[0] << 0u << false << false << false << 2u << true << false
+                                              << QString();
     QTest::newRow("print attach tabs") << file1 << QString() << true << contentsEpub[0] << 0u << false << true << false << 2u << false << true << QString();
-    QTest::newRow("page number attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 3u << false << false << QString();
-    QTest::newRow("presentation attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 2u << true << false << QString();
-    QTest::newRow("print attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 2u << false << true << QString();
-    QTest::newRow("page number attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 3u << false << false << QString();
-    QTest::newRow("presentation attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 2u << true << false << QString();
-    QTest::newRow("print attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 2u << false << true << QString();
+    QTest::newRow("page number attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 3u << false << false
+                                               << QString();
+    QTest::newRow("presentation attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 2u << true << false
+                                                << QString();
+    QTest::newRow("print attach unique") << file1 << optionsUnique << false << contentsEpub[0] << 0u << false << false << true << 2u << false << true
+                                         << QString();
+    QTest::newRow("page number attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 3u << false << false
+                                                    << QString();
+    QTest::newRow("presentation attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 2u << true << false
+                                                     << QString();
+    QTest::newRow("print attach unique tabs") << file1 << optionsUnique << true << contentsEpub[0] << 0u << false << false << true << 2u << false << true
+                                              << QString();
 #endif // HAVE_DBUS
 }
 
@@ -728,8 +822,8 @@ void MainShellTest::testOpenInvalidFiles_data()
     QUrl validFile2 = ShellUtils::urlFromArg(QStringLiteral(KDESRCDIR "data/file2.pdf"), ShellUtils::qfileExistFunc(), QString());
     QUrl invalidFile = ShellUtils::urlFromArg(QStringLiteral(KDESRCDIR "data/non-existing-doc.pdf"), ShellUtils::qfileExistFunc(), QString());
 
-    QList<QUrl> firstCase {invalidFile, validFile1, validFile2};
-    QList<QUrl> secondCase {validFile1, validFile2, invalidFile};
+    QList<QUrl> firstCase{invalidFile, validFile1, validFile2};
+    QList<QUrl> secondCase{validFile1, validFile2, invalidFile};
 
     QTest::newRow("opening the invalid file first") << firstCase << options;
     QTest::newRow("opening the valids file first") << secondCase << options;
@@ -760,7 +854,7 @@ void MainShellTest::testOpenInvalidFiles()
      */
     shell->m_recent->clear();
 
-    QScopedPointer<TestingUtils::CloseDialogHelper> closeDialogHelper {new TestingUtils::CloseDialogHelper(QDialogButtonBox::StandardButton::Ok)};
+    QScopedPointer<TestingUtils::CloseDialogHelper> closeDialogHelper{new TestingUtils::CloseDialogHelper(QDialogButtonBox::StandardButton::Ok)};
 
     for (const QUrl &file : files) {
         shell->openUrl(file);

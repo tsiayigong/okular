@@ -1097,6 +1097,11 @@ bool Part::autoHideMainToolBar() const
     return Okular::Settings::autoHideMainToolBar();
 }
 
+QColor Part::interfaceAccent() const
+{
+    return Okular::Settings::accentColor();
+}
+
 QWidget *Part::getSideContainer() const
 {
     return m_sidebar->getSideContainer();

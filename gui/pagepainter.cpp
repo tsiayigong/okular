@@ -30,6 +30,7 @@
 #include "core/utils.h"
 #include "debug_ui.h"
 #include "guiutils.h"
+#include "papermaterial.h"
 #include "settings.h"
 #include "settings_core.h"
 
@@ -213,7 +214,9 @@ void PagePainter::paintCroppedPageOnPainter(QPainter *destPainter,
 
     /** 3 - ENABLE BACKBUFFERING IF DIRECT IMAGE MANIPULATION IS NEEDED **/
     const bool bufferAccessibility = (flags & Accessibility) && Okular::SettingsCore::changeColors() && (Okular::SettingsCore::renderMode() != Okular::SettingsCore::EnumRenderMode::Paper);
-    const bool useBackBuffer = bufferAccessibility || !bufferedHighlights.isEmpty() || !bufferedAnnotations.isEmpty() || viewPortPoint;
+    const bool bufferMaterial = (flags & Accessibility) && Okular::SettingsCore::changeColors() && Okular::SettingsCore::renderMode() == Okular::SettingsCore::EnumRenderMode::Paper &&
+        Okular::Settings::paperMaterial() == Okular::Settings::EnumPaperMaterial::Acrylic;
+    const bool useBackBuffer = bufferAccessibility || bufferMaterial || !bufferedHighlights.isEmpty() || !bufferedAnnotations.isEmpty() || viewPortPoint;
     QPixmap backPixmap; // order of declarations is important: ownedPainter should be destroyed before its pixmap
     std::unique_ptr<QPainter> ownedPainter;
     QPainter *mixedPainter = nullptr; // Will point to either a provided destPainter or the ownedPainter
@@ -287,6 +290,16 @@ void PagePainter::paintCroppedPageOnPainter(QPainter *destPainter,
         }
 
         p.end();
+
+        if (bufferMaterial) {
+            AppearancePreset appearance;
+            appearance.paper = paperColor;
+            appearance.acrylic = true;
+            appearance.opacity = Okular::Settings::paperOpacity();
+            appearance.blur = Okular::Settings::paperBlur();
+            appearance.background = QStringList{QStringLiteral("mist"), QStringLiteral("sand"), QStringLiteral("ice")}.at(Okular::Settings::paperBackground());
+            PaperMaterial::compose(backImage, dLimitsInPixmap, QSize(dScaledWidth, dScaledHeight), appearance, Okular::Settings::paperBackgroundImage());
+        }
 
         // 4B.2. modify pixmap following accessibility settings
         if (bufferAccessibility) {

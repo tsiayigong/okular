@@ -496,6 +496,8 @@ if(BUILD_DESKTOP)
     gui/debug_ui.cpp
     gui/guiutils.cpp
     gui/pagepainter.cpp
+    gui/appearancepreset.cpp
+    gui/papermaterial.cpp
     gui/signatureguiutils.cpp
     gui/signaturemodel.cpp
     gui/tocmodel.cpp

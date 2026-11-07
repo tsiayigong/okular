@@ -21,6 +21,10 @@ endmacro ()
 add_conf_unittest(editdrawingtooldialogtest.cpp)
 
 if(BUILD_DESKTOP)
+  ecm_add_test(appearancetest.cpp ../gui/appearancepreset.cpp ../gui/papermaterial.cpp
+    TEST_NAME "appearancetest"
+    LINK_LIBRARIES Qt6::Widgets Qt6::Test
+  )
   ecm_add_test(toolbarautohidetest.cpp ../shell/toolbarautohide.cpp
     TEST_NAME "toolbarautohidetest"
     LINK_LIBRARIES Qt6::Widgets Qt6::Test

@@ -150,6 +150,7 @@ public:
     void setShowSourceLocationsGraphically(bool show) override;
     bool openNewFilesInTabs() const override;
     int interfaceTheme() const override;
+    QColor interfaceAccent() const override;
     bool autoHideMainToolBar() const override;
     QWidget *getSideContainer() const override;
     Q_INVOKABLE bool activateTabIfAlreadyOpenFile() const;

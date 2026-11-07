@@ -24,6 +24,20 @@
   <entry key="AutoHideMainToolBar" type="Bool">
    <default>true</default>
   </entry>
+  <entry key="AppearanceName" type="String"><default>Mist</default></entry>
+  <entry key="AccentColor" type="Color"><default>#0A84FF</default></entry>
+  <entry key="PaperMaterial" type="Enum">
+   <default>Solid</default>
+   <choices><choice name="Solid"/><choice name="Acrylic"/></choices>
+  </entry>
+  <entry key="PaperOpacity" type="Int"><default>82</default><min>45</min><max>100</max></entry>
+  <entry key="PaperBlur" type="Int"><default>24</default><min>8</min><max>48</max></entry>
+  <entry key="PaperBackground" type="Enum">
+   <default>Mist</default>
+   <choices><choice name="Mist"/><choice name="Sand"/><choice name="Ice"/></choices>
+  </entry>
+  <entry key="PaperBackgroundImage" type="String"/>
+  <entry key="CustomAppearances" type="String"><default>[]</default></entry>
  </group>
  <group name="Dlg Performance" >
   <entry key="EnableCompositing" type="Bool" >
