@@ -33,11 +33,18 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           # Craft's bootstrap treats the runner's Android SDK variables as a
           # cross-compilation request and selects an unavailable MinSizeRel cache.
-          [Environment]::SetEnvironmentVariable('ANDROID_SDK_ROOT', $null, 'Process')
-          [Environment]::SetEnvironmentVariable('ANDROID_NDK', $null, 'Process')
+          foreach ($name in 'ANDROID_SDK_ROOT', 'ANDROID_NDK') {
+            if (Test-Path "Env:$name") {
+              Remove-Item "Env:$name"
+            }
+          }
+          python -c "import os; assert not ({'ANDROID_SDK_ROOT', 'ANDROID_NDK'} & os.environ.keys()), 'Android environment variables must be absent'"
           Invoke-WebRequest https://raw.githubusercontent.com/KDE/craft/master/setup/CraftBootstrap.py -OutFile "$env:RUNNER_TEMP\CraftBootstrap.py"
-          python "$env:RUNNER_TEMP\CraftBootstrap.py" --prefix $env:CRAFT_ROOT --use-defaults *> "$env:RUNNER_TEMP\craft-bootstrap.log"
-          Get-Content "$env:RUNNER_TEMP\craft-bootstrap.log" -Tail 60
+          try {
+            python "$env:RUNNER_TEMP\CraftBootstrap.py" --prefix $env:CRAFT_ROOT --use-defaults *> "$env:RUNNER_TEMP\craft-bootstrap.log"
+          } finally {
+            Get-Content "$env:RUNNER_TEMP\craft-bootstrap.log" -Tail 100
+          }
           $settings = Get-Content "$env:CRAFT_ROOT\etc\CraftSettings.ini" -Raw
           if ($settings -notmatch '(?m)^BuildType\s*=\s*RelWithDebInfo\s*$') {
             throw 'Craft must use the Windows RelWithDebInfo dependency cache.'
@@ -74,16 +81,34 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+      - name: Collect build diagnostics
+        if: always()
+        run: |
+          $destination = "$env:RUNNER_TEMP\okular-build-diagnostics"
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          foreach ($source in @(
+            "$env:CRAFT_ROOT\logs",
+            "$env:CRAFT_ROOT\etc\CraftSettings.ini",
+            "$env:RUNNER_TEMP\craft-bootstrap.log"
+          )) {
+            if (Test-Path $source) {
+              Copy-Item $source $destination -Recurse -Force
+            }
+          }
+          $build = "$env:CRAFT_ROOT\build\kde\applications\okular"
+          if (Test-Path $build) {
+            Get-ChildItem $build -Recurse -Filter CMakeConfigureLog.yaml | ForEach-Object {
+              $target = Join-Path $destination ([IO.Path]::GetRelativePath($env:CRAFT_ROOT, $_.FullName))
+              New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
+              Copy-Item $_.FullName $target
+            }
+          }
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-build-logs-${{ github.sha }}
-          path: |
-            C:\CraftRoot\logs
-            C:\CraftRoot\etc\CraftSettings.ini
-            ${{ runner.temp }}\craft-bootstrap.log
-            C:\CraftRoot\build\kde\applications\okular\**\CMakeFiles\CMakeConfigureLog.yaml
+          path: ${{ runner.temp }}\okular-build-diagnostics
           if-no-files-found: ignore
           retention-days: 14
       - name: Show failure summary
