@@ -6010,3 +6010,27 @@ msgstr "忘记所有"
 #, kde-format
 msgid "Hide welcome screen"
 msgstr "隐藏欢迎屏幕"
+
+msgid "Follow system"
+msgstr "跟随系统"
+
+msgid "Light"
+msgstr "浅色"
+
+msgid "Dark"
+msgstr "深色"
+
+msgid "Automatically hide the main toolbar"
+msgstr "自动隐藏主工具栏"
+
+msgid "Move the pointer to the top edge of the document to show the toolbar. Press Ctrl+Alt+T to focus it."
+msgstr "鼠标移至文档上沿时显示工具栏，也可按 Ctrl+Alt+T 使用键盘操作。"
+
+msgid "Paper color applies to both the document and its thumbnails. Adjust it in Accessibility → Change paper color."
+msgstr "纸张颜色会同步用于正文和缩略图，可在“辅助功能 → 改变纸张颜色”中调整。"
+
+msgid "Appearance and Reading Space"
+msgstr "外观与阅读空间"
+
+msgid "Focus Main Toolbar"
+msgstr "聚焦主工具栏"

@@ -79,6 +79,9 @@ public:
      */
     virtual bool openNewFilesInTabs() const = 0;
 
+    virtual int interfaceTheme() const = 0;
+    virtual bool autoHideMainToolBar() const = 0;
+
     /**
      * Returns the sidebar container.
      *
@@ -106,6 +109,6 @@ public:
 
 }
 
-Q_DECLARE_INTERFACE(Okular::ViewerInterface, "org.kde.okular.ViewerInterface/0.1")
+Q_DECLARE_INTERFACE(Okular::ViewerInterface, "org.kde.okular.ViewerInterface/0.2")
 
 #endif

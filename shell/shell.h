@@ -34,6 +34,7 @@ class KRecentFilesAction;
 class KToggleAction;
 class QTabWidget;
 class KPluginFactory;
+class ToolbarAutoHide;
 
 /**
  * This is the application "Shell".  It has a menubar and a toolbar
@@ -103,6 +104,7 @@ protected:
     void keyPressEvent(QKeyEvent *) override;
 
 private Q_SLOTS:
+    void applyAppearance();
     void fileOpen();
 
     void slotUpdateFullScreen();
@@ -166,6 +168,7 @@ private:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
     KPluginFactory *m_partFactory;
+    ToolbarAutoHide *m_toolbarAutoHide = nullptr;
     KRecentFilesAction *m_recent;
     QStringList m_fileformats;
     bool m_fileformatsscanned;

@@ -43,15 +43,15 @@
  </group>
  <group name="Document">
   <entry key="PaperColor" type="Color" >
-   <default code="true" >Qt::white</default>
+   <default>#FAFAF8</default>
    <emit signal="colorModesChanged" />
   </entry>
   <entry key="ChangeColors" type="Bool" >
-   <default>false</default>
+   <default>true</default>
    <emit signal="colorModesChanged" />
   </entry>
   <entry key="RenderMode" type="Enum" >
-   <default>Inverted</default>
+   <default>Paper</default>
    <choices>
     <choice name="Inverted" />
     <choice name="Paper" />

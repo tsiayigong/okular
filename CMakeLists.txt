@@ -501,6 +501,7 @@ if(BUILD_DESKTOP)
     gui/tocmodel.cpp
     part/preferencesdialog.cpp
     part/dlgaccessibility.cpp
+    part/dlgappearance.cpp
     part/dlgdebug.cpp
     part/dlgeditor.cpp
     part/dlggeneral.cpp

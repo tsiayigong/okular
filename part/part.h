@@ -149,6 +149,8 @@ public:
     bool areSourceLocationsShownGraphically() const override;
     void setShowSourceLocationsGraphically(bool show) override;
     bool openNewFilesInTabs() const override;
+    int interfaceTheme() const override;
+    bool autoHideMainToolBar() const override;
     QWidget *getSideContainer() const override;
     Q_INVOKABLE bool activateTabIfAlreadyOpenFile() const;
 
@@ -188,6 +190,7 @@ public Q_SLOTS: // dbus
     Q_SCRIPTABLE void slotPasteAnnotation();
 
 Q_SIGNALS:
+    void appearanceChanged();
     void enablePrintAction(bool enable);
     void openSourceReference(const QString &absFileName, int line, int column); /* NOLINT(bugprone-derived-method-shadowing-base-method) cppcheck-suppress duplInheritedMember; see viewerinterface*/
     void viewerMenuStateChange(bool enabled);                                   /* NOLINT(bugprone-derived-method-shadowing-base-method) cppcheck-suppress duplInheritedMember */

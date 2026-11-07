@@ -61,8 +61,6 @@
 #include <KActionCollection>
 #include <KActionMenu>
 #include <KBookmarkAction>
-#include <KColorSchemeManager>
-#include <KColorSchemeMenu>
 #include <KCompressionDevice>
 #include <KDirWatch>
 #include <KFilterBase>
@@ -824,10 +822,6 @@ void Part::setupActions()
 {
     KActionCollection *ac = actionCollection();
 
-    auto manager = new KColorSchemeManager(this);
-    KActionMenu *schemeMenu = KColorSchemeMenu::createMenu(manager, this);
-    ac->addAction(QStringLiteral("colorscheme_menu"), schemeMenu->menu()->menuAction());
-
     m_copy = KStandardAction::create(KStandardAction::Copy, nullptr, nullptr, ac);
     connect(m_copy, &QAction::triggered, this, &Part::slotCopyTextSelectionOrAnnotation);
 
@@ -1091,6 +1085,16 @@ void Part::setShowSourceLocationsGraphically(bool show)
 bool Part::openNewFilesInTabs() const
 {
     return Okular::Settings::self()->shellOpenFileInTabs();
+}
+
+int Part::interfaceTheme() const
+{
+    return Okular::Settings::interfaceTheme();
+}
+
+bool Part::autoHideMainToolBar() const
+{
+    return Okular::Settings::autoHideMainToolBar();
 }
 
 QWidget *Part::getSideContainer() const
@@ -3088,6 +3092,7 @@ void Part::slotAnnotationPreferences()
 
 void Part::slotNewConfig()
 {
+    Q_EMIT appearanceChanged();
     // Apply settings here. A good policy is to check whether the setting has
     // changed before applying changes.
 

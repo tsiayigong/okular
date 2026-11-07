@@ -11,13 +11,20 @@
 
 #include <KConfigGroup>
 #include <KLineEdit>
+#include <KLocalizedString>
 #include <KRecentFilesAction>
+#include <KToolBar>
 
 #if HAVE_DBUS
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #endif // HAVE_DBUS
 #include <QPrintDialog>
+#include <QAbstractItemView>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QTabWidget>
@@ -26,8 +33,12 @@
 #include <qwidget.h>
 
 #include "../core/document_p.h"
+#include "../core/page.h"
 #include "../part/findbar.h"
 #include "../part/part.h"
+#include "../part/pageview.h"
+#include "../part/thumbnaillist.h"
+#include "../shell/toolbarautohide.h"
 #include "../part/presentationwidget.h"
 #include "../settings.h"
 #include "../shell/okular_main.h"
@@ -58,6 +69,19 @@ public:
     FindBar *findWidget(Okular::Part *part) const
     {
         return part->m_findBar;
+    }
+    QWidget *pageViewport(Okular::Part *part) const
+    {
+        return part->m_pageView->viewport();
+    }
+    QWidget *thumbnailViewport(Okular::Part *part) const
+    {
+        return part->m_thumbnailList->viewport();
+    }
+    bool pageAndThumbnailRendered(Okular::Part *part) const
+    {
+        const Okular::Page *page = part->m_document->page(0);
+        return page && page->hasPixmap(part->m_pageView) && page->hasPixmap(part->m_thumbnailList);
     }
 };
 }
@@ -109,6 +133,7 @@ private Q_SLOTS:
     void testOpenInvalidFiles_data();
     void testOpenInvalidFiles();
     void testOpenTheSameFileSeveralTimes();
+    void testDesktopAppearance();
 
 private:
 };
@@ -140,6 +165,7 @@ Shell *findShell(Shell *ignore = nullptr)
 
 void MainShellTest::initTestCase()
 {
+    KLocalizedString::setApplicationDomain("okular");
     QStandardPaths::setTestModeEnabled(true);
     // Don't pollute people's okular settings
     Okular::Settings::instance(QStringLiteral("mainshelltest"));
@@ -183,6 +209,97 @@ void MainShellTest::cleanup()
     while ((s = findShell())) {
         delete s;
     }
+}
+
+static bool containsPaperColor(QWidget *widget, const QColor &color)
+{
+    const QImage image = widget->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    int matchingPixels = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            if (row[x] == color.rgb() && ++matchingPixels > 1000) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void MainShellTest::testDesktopAppearance()
+{
+    Okular::Settings::setShellOpenFileInTabs(true);
+    auto *shell = new Shell;
+    QVERIFY(shell->isValid());
+    shell->resize(1280, 850);
+    shell->show();
+    QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/file1.pdf")), QString()));
+    auto *part = qobject_cast<Okular::Part *>(shell->m_tabs[0].part);
+    QTRY_VERIFY(pageAndThumbnailRendered(part));
+    auto *view = pageViewport(part);
+    auto *thumbnails = thumbnailViewport(part);
+    QVERIFY(view);
+    QVERIFY(thumbnails);
+    QTRY_VERIFY(containsPaperColor(view, QColor(QStringLiteral("#FAFAF8"))));
+    QTRY_VERIFY(containsPaperColor(thumbnails, QColor(QStringLiteral("#FAFAF8"))));
+
+    auto *controller = shell->findChild<ToolbarAutoHide *>();
+    QVERIFY(controller->isEnabled());
+    QCoreApplication::processEvents();
+    const QRect readingGeometry(view->mapTo(shell, QPoint(0, 0)), view->size());
+    controller->reveal();
+    QVERIFY(shell->toolBar()->isVisible());
+    QCOMPARE(QRect(view->mapTo(shell, QPoint(0, 0)), view->size()), readingGeometry);
+
+    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
+    if (!capture.isEmpty()) {
+        QVERIFY(shell->grab().save(capture + QStringLiteral("/native-reader.png")));
+    }
+
+    QVERIFY(QMetaObject::invokeMethod(part, "slotPreferences"));
+    auto *preferences = shell->findChild<QDialog *>(QStringLiteral("preferences"));
+    QVERIFY(preferences);
+    auto *theme = preferences->findChild<QComboBox *>(QStringLiteral("kcfg_InterfaceTheme"));
+    auto *autoHide = preferences->findChild<QCheckBox *>(QStringLiteral("kcfg_AutoHideMainToolBar"));
+    QVERIFY(theme);
+    QVERIFY(autoHide);
+    const auto lists = preferences->findChildren<QAbstractItemView *>();
+    for (auto *list : lists) {
+        for (int row = 0; row < list->model()->rowCount(); ++row) {
+            const QModelIndex index = list->model()->index(row, 0);
+            if (index.data().toString() == i18n("Appearance")) {
+                list->setCurrentIndex(index);
+            }
+        }
+    }
+    QTRY_VERIFY(theme->isVisible());
+    if (!capture.isEmpty()) {
+        QVERIFY(preferences->grab().save(capture + QStringLiteral("/native-appearance.png")));
+    }
+    theme->setCurrentIndex(Okular::Settings::EnumInterfaceTheme::Dark);
+    autoHide->setChecked(false);
+    auto *buttons = preferences->findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QTest::mouseClick(buttons->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    Okular::Settings::setPaperColor(QColor(QStringLiteral("#FFF3D8")));
+    Okular::Settings::self()->save();
+    QTRY_VERIFY(!controller->isEnabled());
+    QCOMPARE(shell->toolBarArea(shell->toolBar()), Qt::TopToolBarArea);
+    QCOMPARE(QApplication::palette().color(QPalette::Window), QColor(QStringLiteral("#292E36")));
+    QTRY_VERIFY(containsPaperColor(view, QColor(QStringLiteral("#FFF3D8"))));
+    QTRY_VERIFY(containsPaperColor(thumbnails, QColor(QStringLiteral("#FFF3D8"))));
+    if (!capture.isEmpty()) {
+        QVERIFY(shell->grab().save(capture + QStringLiteral("/native-reader-dark.png")));
+    }
+
+    Okular::Settings::setAutoHideMainToolBar(true);
+    Okular::Settings::setPaperColor(QColor(QStringLiteral("#FAFAF8")));
+    Okular::Settings::setInterfaceTheme(Okular::Settings::EnumInterfaceTheme::Light);
+    Okular::Settings::self()->save();
+    QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/tocreload.pdf")), QString()));
+    QTRY_VERIFY(controller->isEnabled());
+    QCOMPARE(shell->toolBarArea(shell->toolBar()), Qt::NoToolBarArea);
+    QVERIFY(!shell->toolBar()->isVisible());
 }
 
 void MainShellTest::testShell_data()

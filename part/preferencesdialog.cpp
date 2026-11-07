@@ -12,6 +12,7 @@
 // single config pages
 #include "dlgaccessibility.h"
 #include "dlgannotations.h"
+#include "dlgappearance.h"
 #include "dlgdebug.h"
 #include "dlgeditor.h"
 #include "dlggeneral.h"
@@ -24,6 +25,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, KConfigSkeleton *skeleton,
     : KConfigDialog(parent, QStringLiteral("preferences"), skeleton)
 {
     setWindowModality(Qt::ApplicationModal);
+    setFaceType(KPageDialog::Tree);
 
     m_general = new DlgGeneral(this, embedMode);
     m_performance = new DlgPerformance(this);
@@ -39,6 +41,9 @@ PreferencesDialog::PreferencesDialog(QWidget *parent, KConfigSkeleton *skeleton,
 #endif
 
     addPage(m_general, i18n("General"), QStringLiteral("okular"), i18n("General Options"));
+    if (embedMode == Okular::NativeShellMode) {
+        addPage(new DlgAppearance(this), i18n("Appearance"), QStringLiteral("preferences-desktop-theme"), i18n("Appearance and Reading Space"));
+    }
     m_accessibilityPage = addPage(m_accessibility, i18n("Accessibility"), QStringLiteral("preferences-desktop-accessibility"), i18n("Accessibility Reading Aids"));
     addPage(m_performance, i18n("Performance"), QStringLiteral("preferences-system-performance"), i18n("Performance Tuning"));
     if (embedMode == Okular::ViewerWidgetMode) {

@@ -10,6 +10,8 @@ set(okular_SRCS
    main.cpp
    okular_main.cpp
    shell.cpp
+   desktopappearance.cpp
+   toolbarautohide.cpp
    shellutils.cpp
    welcomescreen.cpp
 

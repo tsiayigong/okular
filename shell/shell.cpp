@@ -58,6 +58,8 @@
 #include "../interfaces/viewerinterface.h"
 #include "kdocumentviewer.h"
 #include "shellutils.h"
+#include "desktopappearance.h"
+#include "toolbarautohide.h"
 
 static const char *shouldShowMenuBarComingFromFullScreen = "shouldShowMenuBarComingFromFullScreen";
 static const char *shouldShowToolBarComingFromFullScreen = "shouldShowToolBarComingFromFullScreen";
@@ -228,7 +230,6 @@ Shell::Shell(const QString &serializedOptions)
         m_tabWidget = new QTabWidget(this);
         m_tabWidget->setTabsClosable(true);
         m_tabWidget->setElideMode(Qt::ElideRight);
-        m_tabWidget->tabBar()->hide();
         m_tabWidget->setDocumentMode(true);
         m_tabWidget->setMovable(true);
 
@@ -271,9 +272,12 @@ Shell::Shell(const QString &serializedOptions)
         m_tabs.append(TabState(firstPart));
         m_tabWidget->addTab(firstPart->widget(), QString()); // triggers setActiveTab that calls createGUI( part )
 
+        m_toolbarAutoHide = new ToolbarAutoHide(this);
+
         connectPart(firstPart);
 
         readSettings();
+        applyAppearance();
 
         m_unique = ShellUtils::unique(serializedOptions);
 #if HAVE_DBUS
@@ -313,6 +317,15 @@ Shell::Shell(const QString &serializedOptions)
     }
 
     connect(guiFactory(), &KXMLGUIFactory::shortcutsSaved, this, &Shell::reloadAllXML);
+    connect(guiFactory(), &KXMLGUIFactory::makingChanges, this, [this](bool changing) {
+        if (m_toolbarAutoHide) {
+            if (changing) {
+                m_toolbarAutoHide->setEnabled(false);
+            } else {
+                applyAppearance();
+            }
+        }
+    });
 }
 
 void Shell::reloadAllXML()
@@ -372,6 +385,7 @@ void Shell::showOpenRecentMenu()
 
 Shell::~Shell()
 {
+    disconnect(guiFactory(), &KXMLGUIFactory::makingChanges, this, nullptr);
     if (!m_tabs.empty()) {
         writeSettings();
         for (const TabState &tab : std::as_const(m_tabs)) {
@@ -558,6 +572,14 @@ void Shell::saveRecents()
 
 void Shell::setupActions()
 {
+    auto *focusToolbar = actionCollection()->addAction(QStringLiteral("focus_main_toolbar"));
+    focusToolbar->setText(i18n("Focus Main Toolbar"));
+    actionCollection()->setDefaultShortcut(focusToolbar, QKeySequence(QStringLiteral("Ctrl+Alt+T")));
+    connect(focusToolbar, &QAction::triggered, this, [this] {
+        if (m_toolbarAutoHide) {
+            m_toolbarAutoHide->reveal(true);
+        }
+    });
     KStandardAction::open(this, SLOT(fileOpen()), actionCollection());
     m_recent = KStandardAction::openRecent(this, SLOT(openUrl(QUrl)), actionCollection());
     m_recent->setToolBarMode(KRecentFilesAction::MenuMode);
@@ -889,6 +911,9 @@ void Shell::setActiveTab(int tab)
     // NOTE : createGUI(...) breaks the visibility of the sidebar, so we need
     // to save and restore it
     const bool isSidebarVisible = m_sidebar->isVisible();
+    if (m_toolbarAutoHide) {
+        m_toolbarAutoHide->setEnabled(false);
+    }
     createGUI(m_tabs[tab].part);
     m_sidebar->setVisible(isSidebarVisible);
 
@@ -912,6 +937,32 @@ void Shell::setActiveTab(int tab)
 
     m_printAction->setEnabled(m_tabs[tab].printEnabled);
     m_closeAction->setEnabled(m_tabs[tab].closeEnabled);
+    applyAppearance();
+}
+
+void Shell::applyAppearance()
+{
+    const int tab = m_tabWidget->currentIndex();
+    if (tab < 0 || tab >= m_tabs.size()) {
+        return;
+    }
+    const auto *viewer = qobject_cast<Okular::ViewerInterface *>(m_tabs[tab].part);
+    DesktopAppearance::instance()->setTheme(viewer->interfaceTheme());
+    KToolBar *mainToolbar = toolBar(QStringLiteral("mainToolBar"));
+    mainToolbar->setIconSize(QSize(20, 20));
+    mainToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    if (m_toolbarAutoHide) {
+        m_toolbarAutoHide->attach(mainToolbar, m_tabs[tab].part->widget());
+        m_toolbarAutoHide->setEnabled(viewer->autoHideMainToolBar());
+    }
+    for (const auto &name : {QStringLiteral("help_about_kde"), QStringLiteral("help_donate")}) {
+        if (QAction *action = actionCollection()->action(name)) {
+            action->setVisible(false);
+        }
+    }
+    if (QAction *backend = m_tabs[tab].part->actionCollection()->action(QStringLiteral("help_about_backend"))) {
+        backend->setVisible(false);
+    }
 }
 
 void Shell::closeTab(int tab)
@@ -938,7 +989,6 @@ void Shell::closeTab(int tab)
         m_closedTabUrls.append(url);
 
         if (m_tabWidget->count() == 1) {
-            m_tabWidget->tabBar()->hide();
             m_nextTabAction->setEnabled(false);
             m_prevTabAction->setEnabled(false);
         }
@@ -969,9 +1019,7 @@ void Shell::openNewTab(const QUrl &url, const QString &serializedOptions)
         }
     }
 
-    // Tabs are hidden when there's only one, so show it
     if (m_tabs.size() == 1) {
-        m_tabWidget->tabBar()->show();
         m_nextTabAction->setEnabled(true);
         m_prevTabAction->setEnabled(true);
     }
@@ -1020,6 +1068,7 @@ void Shell::applyOptionsToPart(QObject *part, const QString &serializedOptions)
 
 void Shell::connectPart(const KParts::ReadWritePart *part)
 {
+    connect(part, SIGNAL(appearanceChanged()), this, SLOT(applyAppearance())); // clazy:exclude=old-style-connect
     // We're abusing the fact we know the part is our part here
     connect(this, SIGNAL(moveSplitter(int)), part, SLOT(moveSplitter(int)));                      // clazy:exclude=old-style-connect
     connect(part, SIGNAL(enablePrintAction(bool)), this, SLOT(setPrintEnabled(bool)));            // clazy:exclude=old-style-connect

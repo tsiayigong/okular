@@ -12,6 +12,19 @@
   <label>Same as colorModesChanged(), but kconfig_compiler does not allow to inherit signals, so appending a '2'.</label>
  </signal>
  <signal name="primaryAnnotationToolBarChanged" />
+ <group name="Appearance">
+  <entry key="InterfaceTheme" type="Enum">
+   <default>Light</default>
+   <choices>
+    <choice name="System" />
+    <choice name="Light" />
+    <choice name="Dark" />
+   </choices>
+  </entry>
+  <entry key="AutoHideMainToolBar" type="Bool">
+   <default>true</default>
+  </entry>
+ </group>
  <group name="Dlg Performance" >
   <entry key="EnableCompositing" type="Bool" >
    <default>true</default>
@@ -379,9 +392,10 @@
    <default>false</default>
   </entry>
   <entry key="UseCustomBackgroundColor" type="Bool" >
-   <default>false</default>
+   <default>true</default>
   </entry>
   <entry key="BackgroundColor" type="Color" >
+   <default>#E6EAEE</default>
   </entry>
  </group>
  <group name="Search" >

@@ -20,6 +20,13 @@ endmacro ()
 
 add_conf_unittest(editdrawingtooldialogtest.cpp)
 
+if(BUILD_DESKTOP)
+  ecm_add_test(toolbarautohidetest.cpp ../shell/toolbarautohide.cpp
+    TEST_NAME "toolbarautohidetest"
+    LINK_LIBRARIES Qt6::Widgets Qt6::Test
+  )
+endif()
+
 ecm_add_test(shelltest.cpp ../shell/shellutils.cpp
     TEST_NAME "shelltest"
     LINK_LIBRARIES Qt6::Test okularcore
@@ -131,6 +138,7 @@ if(BUILD_DESKTOP)
         LINK_LIBRARIES Qt6::Test okularpart okularcore
     )
     target_compile_definitions(mainshelltest PRIVATE OKULAR_BINARY="$<TARGET_FILE:okular>")
+    target_sources(mainshelltest PRIVATE ../shell/desktopappearance.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
 
     if (HAVE_X11)
         target_link_libraries(mainshelltest Qt6::GuiPrivate)
@@ -142,6 +150,7 @@ if(BUILD_DESKTOP)
         TEST_NAME "annotationtoolbartest"
         LINK_LIBRARIES Qt6::Test okularpart
     )
+    target_sources(annotationtoolbartest PRIVATE ../shell/desktopappearance.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
 
     if (HAVE_X11)
         target_link_libraries(annotationtoolbartest Qt6::GuiPrivate)
