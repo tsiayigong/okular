@@ -11,6 +11,7 @@ set(okular_SRCS
    okular_main.cpp
    shell.cpp
    desktopappearance.cpp
+   windowmaterial.cpp
    toolbarautohide.cpp
    shellutils.cpp
    welcomescreen.cpp
@@ -29,6 +30,9 @@ ecm_add_app_icon(okular_SRCS ICONS ${ICONS_SRCS})
 add_executable(okular ${okular_SRCS})
 
 target_link_libraries(okular KF6::I18n KF6::Parts KF6::WindowSystem KF6::Crash KF6::IconThemes KF6::KIOGui)
+if(WIN32)
+    target_link_libraries(okular dwmapi)
+endif()
 if (TARGET Qt6::DBus)
     target_link_libraries(okular Qt6::DBus)
 endif()

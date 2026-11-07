@@ -33,6 +33,7 @@ class Sidebar;
 class KRecentFilesAction;
 class KToggleAction;
 class QTabWidget;
+class QMenu;
 class KPluginFactory;
 class ToolbarAutoHide;
 
@@ -162,6 +163,7 @@ private:
     int findTabIndex(QObject *sender) const;
     int findTabIndex(const QUrl &url) const;
     void readRecentFilesSettings();
+    void arrangeMenus();
 
 private:
     void reloadAllXML();
@@ -169,6 +171,7 @@ private:
 
     KPluginFactory *m_partFactory;
     ToolbarAutoHide *m_toolbarAutoHide = nullptr;
+    QMenu *m_applicationMenu = nullptr;
     KRecentFilesAction *m_recent;
     QStringList m_fileformats;
     bool m_fileformatsscanned;

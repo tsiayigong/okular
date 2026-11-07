@@ -8,6 +8,11 @@ The approved reference is the 84-screen prototype at
 
 - PingFang SC Regular and the FreeType Windows font engine.
 - Compact light/dark palettes, menus, tabs and toolbar controls.
+- Welcome and empty-history layouts, recent-document cards, keyboard activation,
+  history clearing and document drop targets.
+- Application menu, grouped navigation/bookmarks and shared actions that follow
+  the active document. Windows chrome uses Qt's expanded client area and the DWM
+  acrylic backdrop; packaged Windows rendering remains to be checked.
 - Main toolbar overlay with an 8 px reveal area, delayed hiding, keyboard access,
   and stable document geometry across document and tab changes.
 - Soft white paper (`#FAFAF8`) shared by document rendering and thumbnails.
@@ -27,12 +32,12 @@ The approved reference is the 84-screen prototype at
 
 | Reference screens | Work remaining |
 | --- | --- |
-| 01–06 | Welcome, recent files, open/password/error/loading presentation |
-| 07–17, 66–71, 83–84 | Unified window chrome, native Windows acrylic, sidebar controls, reading states and dark surfaces |
+| 03–06 | Open/password/error/loading presentation |
+| 07–17, 66–71, 83–84 | Full-width document tabs, sidebar controls, reading states, dark surfaces and Windows acrylic validation |
 | 18–38 | Restyle and validate the existing annotation, form, signature, attachment, document information, save/export/print/share flows |
 | 39–40, 77–82 | Presentation laser/highlighter, presenter and audience windows, Beamer note layouts, ink retention |
 | 41–55 | Complete the unified settings pages and their shortcuts/toolbars/language integrations |
-| 56–65 | Reorganize application menus and help; review credits and component licenses |
+| 56–65 | Complete menu grouping, help, credits and component licenses |
 | 72–76 | Refine appearance library layout; implement per-document experimental PDF background recognition and comparison |
 | All | Windows build, packaged runtime checks, high-DPI and multi-display validation against the reference |
 
@@ -42,5 +47,7 @@ Local Qt tests cover real PDF page/thumbnail colors, theme application, toolbar
 geometry, preset creation/application/cancellation, JSON schema validation,
 and cropped material rendering. PDF selection tests cover comment creation,
 undo/redo, save/reopen, and recovery of the selected quote.
+Shell tests also cover menu order across document switches and the recent-file
+open/close/clear flow.
 Local captures are under `output/okular-native`.
 Windows runtime and full reference coverage remain pending.

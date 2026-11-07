@@ -10,6 +10,7 @@
 #include <config-okular.h>
 
 #include <KColorButton>
+#include <KActionCollection>
 #include <KConfigGroup>
 #include <KLineEdit>
 #include <KLocalizedString>
@@ -28,6 +29,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QListWidget>
+#include <QMenuBar>
+#include <QMenu>
 #include <QPrintDialog>
 #include <QPushButton>
 #include <QStandardPaths>
@@ -49,6 +52,7 @@
 #include "../shell/shell.h"
 #include "../shell/shellutils.h"
 #include "../shell/toolbarautohide.h"
+#include "../shell/welcomescreen.h"
 #include "closedialoghelper.h"
 
 #include <sys/types.h>
@@ -140,6 +144,7 @@ private Q_SLOTS:
     void testOpenTheSameFileSeveralTimes();
     void testDesktopAppearance();
     void testAppearanceLibrary();
+    void testWelcomeScreen();
 
 private:
 };
@@ -241,6 +246,24 @@ void MainShellTest::testDesktopAppearance()
     shell->show();
     QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/file1.pdf")), QString()));
     auto *part = qobject_cast<Okular::Part *>(shell->m_tabs[0].part);
+    auto *applicationMenu = shell->findChild<QMenu *>(QStringLiteral("applicationMenu"));
+    QVERIFY(applicationMenu);
+    const auto menus = [shell] {
+        QList<QAction *> result;
+        for (auto *action : shell->menuBar()->actions()) {
+            if (action->menu() && action->isVisible()) {
+                result.append(action);
+            }
+        }
+        return result;
+    };
+    QCOMPARE(menus().first(), applicationMenu->menuAction());
+    QVERIFY(applicationMenu->actions().contains(part->actionCollection()->action(QStringLiteral("options_configure"))));
+    QCOMPARE(menus().size(), 7);
+    QCOMPARE(menus()[4]->text(), i18n("&Navigate"));
+    const auto menuActions = menus();
+    shell->applyAppearance();
+    QCOMPARE(menus(), menuActions);
     QTRY_VERIFY(pageAndThumbnailRendered(part));
     auto *view = pageViewport(part);
     auto *thumbnails = thumbnailViewport(part);
@@ -304,8 +327,57 @@ void MainShellTest::testDesktopAppearance()
     Okular::Settings::self()->save();
     QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/tocreload.pdf")), QString()));
     QTRY_VERIFY(controller->isEnabled());
+    QCOMPARE(menus().first(), applicationMenu->menuAction());
+    auto *activePart = shell->m_tabs[shell->m_tabWidget->currentIndex()].part;
+    QVERIFY(applicationMenu->actions().contains(activePart->actionCollection()->action(QStringLiteral("options_configure"))));
     QCOMPARE(shell->toolBarArea(shell->toolBar()), Qt::NoToolBarArea);
     QVERIFY(!shell->toolBar()->isVisible());
+}
+
+void MainShellTest::testWelcomeScreen()
+{
+    auto *shell = new Shell;
+    QVERIFY(shell->isValid());
+    shell->resize(1280, 850);
+    shell->show();
+    shell->m_recent->clear();
+    auto *welcome = shell->m_welcomeScreen;
+    auto *recents = welcome->findChild<QListView *>(QStringLiteral("recentsListView"));
+    auto *empty = welcome->findChild<QLabel *>(QStringLiteral("emptyDropArea"));
+    auto *clear = welcome->findChild<QToolButton *>(QStringLiteral("forgetAllButton"));
+    QVERIFY(recents);
+    QVERIFY(empty);
+    QVERIFY(clear);
+    QTRY_VERIFY(welcome->isVisible());
+    QTRY_VERIFY(empty->isVisible());
+    QVERIFY(!recents->isVisible());
+    QCoreApplication::processEvents();
+    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
+    if (!capture.isEmpty()) {
+        QVERIFY(shell->grab().save(capture + QStringLiteral("/native-home-empty.png")));
+    }
+
+    const QUrl first = QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/file1.pdf"));
+    const QUrl second = QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/tocreload.pdf"));
+    shell->m_recent->addUrl(first);
+    shell->m_recent->addUrl(second);
+    shell->refreshRecentsOnWelcomeScreen();
+    QTRY_VERIFY(recents->isVisible());
+    QVERIFY(!empty->isVisible());
+    QCOMPARE(recents->model()->rowCount(), 2);
+    QCoreApplication::processEvents();
+    if (!capture.isEmpty()) {
+        QVERIFY(shell->grab().save(capture + QStringLiteral("/native-home-recent.png")));
+    }
+    recents->setCurrentIndex(recents->model()->index(0, 0));
+    QTest::keyClick(recents, Qt::Key_Return);
+    QTRY_VERIFY(!welcome->isVisible());
+    QCOMPARE(shell->m_tabs[0].part->url(), second);
+    shell->closeTab(0);
+    QTRY_VERIFY(welcome->isVisible());
+    clear->click();
+    QTRY_VERIFY(empty->isVisible());
+    QCOMPARE(recents->model()->rowCount(), 0);
 }
 
 void MainShellTest::testAppearanceLibrary()

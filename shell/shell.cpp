@@ -45,6 +45,8 @@
 #include <QDragMoveEvent>
 #include <QFileDialog>
 #include <QJsonArray>
+#include <QLabel>
+#include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
 #include <QObject>
@@ -186,6 +188,25 @@ Shell::Shell(const QString &serializedOptions)
     , m_isValid(true)
 {
     setObjectName(QStringLiteral("okular::Shell#"));
+    DesktopAppearance::instance();
+#ifdef Q_OS_WIN
+    setProperty("unifiedTitleBar", true);
+    setWindowFlags(windowFlags() | Qt::CustomizeWindowHint | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
+    setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
+#endif
+    menuBar()->setMinimumHeight(32);
+    auto *brandIcon = new QLabel(menuBar());
+    brandIcon->setPixmap(QIcon::fromTheme(QStringLiteral("okular")).pixmap(22, 22));
+    brandIcon->setFixedSize(30, 30);
+    brandIcon->setAlignment(Qt::AlignCenter);
+    brandIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+    menuBar()->setCornerWidget(brandIcon, Qt::TopLeftCorner);
+#ifdef Q_OS_WIN
+    auto *captionButtons = new QWidget(menuBar());
+    captionButtons->setFixedSize(144, 32);
+    captionButtons->setAttribute(Qt::WA_TransparentForMouseEvents);
+    menuBar()->setCornerWidget(captionButtons, Qt::TopRightCorner);
+#endif
     setContextMenuPolicy(Qt::NoContextMenu);
     // otherwise .rc file won't be found by unit test
     setComponentName(QStringLiteral("okular"), QString());
@@ -219,7 +240,6 @@ Shell::Shell(const QString &serializedOptions)
         // Setup the welcome screen
         m_welcomeScreen = new WelcomeScreen(this);
         connect(m_welcomeScreen, &WelcomeScreen::openClicked, this, &Shell::fileOpen);
-        connect(m_welcomeScreen, &WelcomeScreen::closeClicked, this, &Shell::hideWelcomeScreen);
         connect(m_welcomeScreen, &WelcomeScreen::recentItemClicked, this, [this](const QUrl &url) { openUrl(url); });
         connect(m_welcomeScreen, &WelcomeScreen::forgetRecentItem, this, &Shell::forgetRecentItem);
         m_centralStackedWidget->addWidget(m_welcomeScreen);
@@ -963,6 +983,52 @@ void Shell::applyAppearance()
     if (QAction *backend = m_tabs[tab].part->actionCollection()->action(QStringLiteral("help_about_backend"))) {
         backend->setVisible(false);
     }
+    arrangeMenus();
+}
+
+void Shell::arrangeMenus()
+{
+    auto menu = [this](const char *name) {
+        return qobject_cast<QMenu *>(guiFactory()->container(QString::fromLatin1(name), nullptr));
+    };
+    if (!m_applicationMenu) {
+        m_applicationMenu = new QMenu(QStringLiteral("Okular"), this);
+        m_applicationMenu->setObjectName(QStringLiteral("applicationMenu"));
+    }
+    m_applicationMenu->clear();
+    if (auto *about = actionCollection()->action(QStringLiteral("help_about_app"))) {
+        m_applicationMenu->addAction(about);
+        m_applicationMenu->addSeparator();
+    }
+    if (auto *settings = menu("settings")) {
+        m_applicationMenu->addActions(settings->actions());
+        menuBar()->removeAction(settings->menuAction());
+    }
+    if (auto *quit = actionCollection()->action(QStringLiteral("file_quit"))) {
+        m_applicationMenu->addSeparator();
+        m_applicationMenu->addAction(quit);
+        if (auto *file = menu("file")) {
+            file->removeAction(quit);
+        }
+    }
+    if (auto *navigate = menu("go")) {
+        navigate->setTitle(i18n("&Navigate"));
+        if (auto *bookmarks = menu("bookmarks")) {
+            if (!navigate->actions().contains(bookmarks->menuAction())) {
+                navigate->addSeparator();
+                navigate->addMenu(bookmarks);
+            }
+            menuBar()->removeAction(bookmarks->menuAction());
+        }
+    }
+    QAction *before = nullptr;
+    for (const auto *name : {"help", "tools", "go", "view", "edit", "file"}) {
+        if (auto *item = menu(name)) {
+            menuBar()->insertMenu(before, item);
+            before = item->menuAction();
+        }
+    }
+    menuBar()->insertMenu(before, m_applicationMenu);
 }
 
 void Shell::closeTab(int tab)

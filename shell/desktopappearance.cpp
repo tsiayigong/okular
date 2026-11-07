@@ -4,6 +4,7 @@
 */
 
 #include "desktopappearance.h"
+#include "windowmaterial.h"
 
 #include <KIconLoader>
 #include <QApplication>
@@ -20,6 +21,7 @@ DesktopAppearance::DesktopAppearance(QObject *parent)
     : QObject(parent)
 {
     QApplication::setStyle(QStringLiteral("Fusion"));
+    new WindowMaterial(this);
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this] {
         if (m_theme == 0) {
             apply();
@@ -32,6 +34,7 @@ void DesktopAppearance::setTheme(int theme, const QColor &accent)
     if (m_theme != theme || m_accent != accent) {
         m_theme = theme;
         m_accent = accent;
+        QGuiApplication::styleHints()->setColorScheme(theme == 0 ? Qt::ColorScheme::Unknown : theme == 2 ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
         apply();
     }
 }
@@ -57,6 +60,7 @@ void DesktopAppearance::apply()
     palette.setColor(QPalette::Link, accent);
     palette.setColor(QPalette::ToolTipBase, surface);
     palette.setColor(QPalette::ToolTipText, text);
+    palette.setColor(QPalette::PlaceholderText, muted);
     for (const auto role : {QPalette::Text, QPalette::WindowText, QPalette::ButtonText}) {
         palette.setColor(QPalette::Disabled, role, muted);
     }
@@ -64,8 +68,8 @@ void DesktopAppearance::apply()
     KIconLoader::global()->setCustomPalette(palette);
 
     QString css = QStringLiteral(R"(
-        QMenuBar { background: @chrome; padding: 2px 8px; spacing: 3px; border-bottom: 1px solid @line; }
-        QMenuBar::item { background: transparent; padding: 5px 9px; border-radius: 4px; }
+        QMenuBar { background: @chrome; padding: 0px 8px; spacing: 2px; border-bottom: 1px solid @line; }
+        QMenuBar::item { background: transparent; padding: 4px 9px; border-radius: 4px; }
         QMenuBar::item:selected { background: @hover; }
         QMenu { background: @surface; color: @text; border: 1px solid @line; border-radius: 6px; padding: 5px; }
         QMenu::item { padding: 5px 28px 5px 24px; border-radius: 4px; }
@@ -99,6 +103,17 @@ void DesktopAppearance::apply()
         QStatusBar { background: @chrome; color: @muted; border-top: 1px solid @line; }
         QStatusBar::item { border: 0; }
         QToolTip { background: @surface; color: @text; border: 1px solid @line; border-radius: 4px; padding: 5px 8px; }
+        QWidget#welcomeScreen { background: transparent; }
+        QWidget#welcomeScreen QListView { background: transparent; border: 0; }
+        QWidget#welcomeScreen QFrame#divider { color: @line; }
+        QWidget#welcomeScreen QLabel#welcomeDescription, QWidget#welcomeScreen QLabel#openShortcut { color: @muted; }
+        QWidget#welcomeScreen QLabel#documentDropArea, QWidget#welcomeScreen QLabel#emptyDropArea { border: 1px dashed @line; border-radius: 4px; color: @muted; padding: 8px; }
+        QMainWindow[nativeAcrylic="true"] { background: transparent; }
+        QMainWindow[nativeAcrylic="true"] QMenuBar, QMainWindow[nativeAcrylic="true"] QToolBar,
+        QMainWindow[nativeAcrylic="true"] QTabBar, QMainWindow[nativeAcrylic="true"] QStatusBar { background: @glassChrome; }
+        QMainWindow[nativeAcrylic="true"] QDockWidget#okular_sidebar,
+        QMainWindow[nativeAcrylic="true"] QDockWidget#okular_sidebar QAbstractScrollArea { background: @glassSidebar; }
+        QMenu[nativeAcrylic="true"], QDialog[nativeAcrylic="true"] { background: @glassSurface; }
     )");
     css.replace(QLatin1String("@surface"), surface.name());
     css.replace(QLatin1String("#0A84FF"), accent.name());
@@ -110,5 +125,8 @@ void DesktopAppearance::apply()
     css.replace(QLatin1String("@line"), dark ? QLatin1String("#454E5A") : QLatin1String("#D2DAE2"));
     css.replace(QLatin1String("@hover"), dark ? QLatin1String("#414C5A") : QLatin1String("#E5EBF1"));
     css.replace(QLatin1String("@selected"), dark ? QLatin1String("#284B71") : QLatin1String("#D9EBFF"));
+    css.replace(QLatin1String("@glassChrome"), dark ? QLatin1String("rgba(38,45,54,155)") : QLatin1String("rgba(218,231,240,125)"));
+    css.replace(QLatin1String("@glassSidebar"), dark ? QLatin1String("rgba(42,53,65,150)") : QLatin1String("rgba(207,226,237,140)"));
+    css.replace(QLatin1String("@glassSurface"), dark ? QLatin1String("rgba(39,44,52,200)") : QLatin1String("rgba(247,249,252,190)"));
     qApp->setStyleSheet(css);
 }

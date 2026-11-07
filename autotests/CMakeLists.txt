@@ -142,7 +142,10 @@ if(BUILD_DESKTOP)
         LINK_LIBRARIES Qt6::Test okularpart okularcore
     )
     target_compile_definitions(mainshelltest PRIVATE OKULAR_BINARY="$<TARGET_FILE:okular>")
-    target_sources(mainshelltest PRIVATE ../shell/desktopappearance.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
+    target_sources(mainshelltest PRIVATE ../shell/desktopappearance.cpp ../shell/windowmaterial.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
+    if(WIN32)
+        target_link_libraries(mainshelltest dwmapi)
+    endif()
 
     if (HAVE_X11)
         target_link_libraries(mainshelltest Qt6::GuiPrivate)
@@ -154,7 +157,10 @@ if(BUILD_DESKTOP)
         TEST_NAME "annotationtoolbartest"
         LINK_LIBRARIES Qt6::Test okularpart
     )
-    target_sources(annotationtoolbartest PRIVATE ../shell/desktopappearance.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
+    target_sources(annotationtoolbartest PRIVATE ../shell/desktopappearance.cpp ../shell/windowmaterial.cpp ../shell/toolbarautohide.cpp ../shell/shell.qrc)
+    if(WIN32)
+        target_link_libraries(annotationtoolbartest dwmapi)
+    endif()
 
     if (HAVE_X11)
         target_link_libraries(annotationtoolbartest Qt6::GuiPrivate)

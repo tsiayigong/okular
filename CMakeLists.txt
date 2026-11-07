@@ -8,7 +8,7 @@ set (RELEASE_SERVICE_VERSION "${RELEASE_SERVICE_VERSION_MAJOR}.${RELEASE_SERVICE
 
 project(okular VERSION ${RELEASE_SERVICE_VERSION})
 
-set(QT_REQUIRED_VERSION "6.6.0") # Remember to update the QT_DEPRECATED_WARNINGS_SINCE below
+set(QT_REQUIRED_VERSION "6.9.0") # Remember to update the QT_DEPRECATED_WARNINGS_SINCE below
 set(KF_REQUIRED_VERSION "5.240.0") # Remember to update the KF_DEPRECATED_WARNINGS_SINCE below
 
 set(OKULAR_UI "" CACHE STRING "Which Okular user interface to build. Possible values: desktop, mobile, both. Default: desktop (except on Android, where it is 'mobile')")
@@ -271,7 +271,7 @@ set_okular_optional_package_properties(Discount PROPERTIES
         PURPOSE "Support for Markdown documents in Okular.")
 
 add_definitions(-DTRANSLATION_DOMAIN="okular")
-add_definitions(-DQT_DEPRECATED_WARNINGS_SINCE=0x060600)
+add_definitions(-DQT_DEPRECATED_WARNINGS_SINCE=0x060900)
 add_definitions(-DKF_DEPRECATED_WARNINGS_SINCE=0x05F000)
 
 if (Poppler_VERSION VERSION_LESS 24.10.0)

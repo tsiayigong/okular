@@ -6178,3 +6178,27 @@ msgstr "选中的文字"
 
 msgid "Write a comment…"
 msgstr "添加备注…"
+
+msgid "&Navigate"
+msgstr "导航(&N)"
+
+msgid "Read, annotate and explore your documents.\nOpen a file to get started."
+msgstr "阅读、标注与探索文档。\n从打开一份文件开始。"
+
+msgid "Open Document…"
+msgstr "打开文档…"
+
+msgid "Recently Opened"
+msgstr "最近打开"
+
+msgid "Clear History"
+msgstr "清空记录"
+
+msgid "Drop a document here to open it"
+msgstr "将文档拖到这里打开"
+
+msgid "Start Reading"
+msgstr "开始阅读"
+
+msgid "Your recently opened documents will appear here."
+msgstr "最近打开的文档会显示在这里。"

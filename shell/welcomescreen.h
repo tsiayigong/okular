@@ -29,7 +29,6 @@ public:
 
 Q_SIGNALS:
     void openClicked();
-    void closeClicked();
     void recentItemClicked(QUrl const &url);
     void forgetAllRecents();
     void forgetRecentItem(QUrl const &url);
@@ -47,7 +46,6 @@ private:
     RecentItemsModel *m_recentsModel;
     RecentsListItemDelegate *m_recentsItemDelegate;
 
-    QLabel *m_noRecentsLabel;
 };
 
 #endif // WELCOMESCREEN_H

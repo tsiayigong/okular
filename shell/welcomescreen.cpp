@@ -13,9 +13,11 @@
 
 #include <QAction>
 #include <QClipboard>
-#include <QGraphicsOpacityEffect>
-#include <QGuiApplication>
+#include <QApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QMenu>
+#include <QPainter>
 #include <QResizeEvent>
 #include <QStyledItemDelegate>
 
@@ -34,6 +36,41 @@ public:
     WelcomeScreen *welcomeScreen() const
     {
         return m_welcomeScreen;
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
+    {
+        return QSize(320, 72);
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        const QRect card = option.rect.adjusted(1, 4, -1, -4);
+        QColor background = QApplication::palette().color(QPalette::Base);
+        QColor border = option.palette.color(QPalette::WindowText);
+        border.setAlpha(25);
+        if (option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver)) {
+            background = option.palette.color(QPalette::Highlight);
+            background.setAlpha(28);
+            border = option.palette.color(QPalette::Highlight);
+        } else {
+            background.setAlpha(200);
+        }
+        painter->setPen(border);
+        painter->setBrush(background);
+        painter->drawRoundedRect(card, 4, 4);
+        qvariant_cast<QIcon>(index.data(Qt::DecorationRole)).paint(painter, QRect(card.left() + 14, card.center().y() - 14, 28, 28));
+        const QRect textArea = card.adjusted(58, 10, -14, -8);
+        painter->setFont(option.font);
+        painter->setPen(option.palette.color(QPalette::Text));
+        painter->drawText(textArea, Qt::AlignTop | Qt::AlignLeft, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideMiddle, textArea.width()));
+        const QUrl url(index.data(RecentItemsModel::UrlRole).toString());
+        const QString location = url.isLocalFile() ? QDir::toNativeSeparators(QFileInfo(url.toLocalFile()).absolutePath()) : url.host();
+        painter->setPen(option.palette.color(QPalette::PlaceholderText));
+        painter->drawText(textArea, Qt::AlignBottom | Qt::AlignLeft, option.fontMetrics.elidedText(location, Qt::ElideMiddle, textArea.width()));
+        painter->restore();
     }
 
     bool editorEvent(QEvent *event, QAbstractItemModel *aModel, const QStyleOptionViewItem &styleOptionViewItem, const QModelIndex &index) override
@@ -112,33 +149,17 @@ WelcomeScreen::WelcomeScreen(QWidget *parent)
     Q_ASSERT(parent);
 
     setupUi(this);
+    setObjectName(QStringLiteral("welcomeScreen"));
 
     connect(openButton, &QPushButton::clicked, this, &WelcomeScreen::openClicked);
-    connect(closeButton, &QPushButton::clicked, this, &WelcomeScreen::closeClicked);
 
     recentsListView->setContextMenuPolicy(Qt::DefaultContextMenu);
     recentsListView->setModel(m_recentsModel);
     recentsListView->setItemDelegate(m_recentsItemDelegate);
+    recentsListView->setMouseTracking(true);
     connect(recentsListView, &QListView::activated, this, &WelcomeScreen::recentsItemActivated);
 
     connect(m_recentsModel, &RecentItemsModel::layoutChanged, this, &WelcomeScreen::recentListChanged);
-
-    QVBoxLayout *noRecentsLayout = new QVBoxLayout(recentsListView);
-    recentsListView->setLayout(noRecentsLayout);
-    m_noRecentsLabel = new QLabel(recentsListView);
-    QFont placeholderLabelFont;
-    // To match the size of a level 2 Heading/KTitleWidget
-    placeholderLabelFont.setPointSize(qRound(placeholderLabelFont.pointSize() * 1.3));
-    noRecentsLayout->addWidget(m_noRecentsLabel);
-    m_noRecentsLabel->setFont(placeholderLabelFont);
-    m_noRecentsLabel->setTextInteractionFlags(Qt::NoTextInteraction);
-    m_noRecentsLabel->setWordWrap(true);
-    m_noRecentsLabel->setAlignment(Qt::AlignCenter);
-    m_noRecentsLabel->setText(i18nc("on welcome screen", "No recent documents"));
-    // Match opacity of QML placeholder label component
-    auto *effect = new QGraphicsOpacityEffect(m_noRecentsLabel);
-    effect->setOpacity(0.5);
-    m_noRecentsLabel->setGraphicsEffect(effect);
 
     connect(forgetAllButton, &QToolButton::clicked, this, &WelcomeScreen::forgetAllRecents);
 }
@@ -152,7 +173,7 @@ WelcomeScreen::~WelcomeScreen()
 void WelcomeScreen::showEvent(QShowEvent *e)
 {
     if (appIcon->pixmap(Qt::ReturnByValue).isNull()) {
-        appIcon->setPixmap(QIcon::fromTheme(QStringLiteral("okular")).pixmap(KIconLoader::SizeEnormous));
+        appIcon->setPixmap(QIcon::fromTheme(QStringLiteral("okular")).pixmap(96, 96));
     }
 
     QWidget::showEvent(e);
@@ -183,13 +204,21 @@ void WelcomeScreen::recentsItemActivated(const QModelIndex &index)
 
 void WelcomeScreen::recentListChanged()
 {
-    if (recentsCount() == 0) {
-        m_noRecentsLabel->show();
-        forgetAllButton->setEnabled(false);
-    } else {
-        m_noRecentsLabel->hide();
-        forgetAllButton->setEnabled(true);
-    }
+    const bool hasRecents = recentsCount() > 0;
+    recentPanel->setVisible(hasRecents);
+    divider->setVisible(hasRecents);
+    emptyDropArea->setVisible(!hasRecents);
+    forgetAllButton->setEnabled(hasRecents);
+    welcomeTitle->setText(hasRecents ? i18n("Welcome to Okular") : i18n("Start Reading"));
+    welcomeDescription->setText(hasRecents ? i18n("Read, annotate and explore your documents.\nOpen a file to get started.")
+                                         : i18n("Your recently opened documents will appear here."));
+    const auto alignment = hasRecents ? Qt::AlignLeft : Qt::AlignHCenter;
+    appIcon->setAlignment(alignment);
+    welcomeTitle->setAlignment(alignment);
+    welcomeDescription->setAlignment(alignment);
+    openShortcut->setAlignment(alignment);
+    introLayout->setAlignment(appIcon, alignment);
+    introLayout->setAlignment(openButton, alignment);
 }
 
 #include "welcomescreen.moc"
