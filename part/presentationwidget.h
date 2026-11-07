@@ -26,6 +26,7 @@ class SmoothPathEngine;
 struct PresentationFrame;
 class PresentationSearchBar;
 class DrawingToolActions;
+class PresentationTools;
 
 namespace Okular
 {
@@ -71,6 +72,7 @@ protected:
     void resizeEvent(QResizeEvent *e) override;
     void enterEvent(QEnterEvent *e) override;
     void leaveEvent(QEvent *e) override;
+    void closeEvent(QCloseEvent *e) override;
     bool gestureEvent(QGestureEvent *e);
 
     // Catch TabletEnterProximity and TabletLeaveProximity events from the QApplication
@@ -100,10 +102,16 @@ private:
     void setScreen(const QScreen *newScreen);
     void inhibitPowerManagement();
     void allowPowerManagement();
-    void showTopBar(bool);
+    void showControls(bool);
     // create actions that interact with this widget
     void setupActions();
     void setPlayPauseIcon();
+    void positionControls();
+    void updateInkActions();
+    void undoDrawing();
+    void eraseDrawing(const QPointF &position);
+    void updateDrawingTool();
+    void updateLaser(const QPointF &position);
 
     // cache stuff
     int m_width;
@@ -115,6 +123,12 @@ private:
     bool m_handCursor;
     SmoothPathEngine *m_drawingEngine;
     QRect m_drawingRect;
+    PresentationTools *m_tools;
+    QPointF m_laserPosition;
+    bool m_laserVisible = false;
+    bool m_erasing = false;
+    bool m_erasureSaved = false;
+    bool m_drawingPressed = false;
     uint m_screenInhibitCookie;
     int m_sleepInhibitFd;
 
@@ -137,7 +151,7 @@ private:
     QList<PresentationFrame *> m_frames;
     int m_frameIndex;
     QStringList m_metaStrings;
-    QToolBar *m_topBar;
+    QToolBar *m_controlBar;
     QLineEdit *m_pagesEdit;
     PresentationSearchBar *m_searchBar;
     KActionCollection *m_ac;
@@ -172,8 +186,6 @@ private Q_SLOTS:
     void slotProcessMovieAction(const Okular::MovieAction *action);
     void slotProcessRenditionAction(const Okular::RenditionAction *action);
     void slotTogglePlayPause();
-    void slotChangeDrawingToolEngine(const QDomElement &element);
-    void slotAddDrawingToolActions();
 };
 
 #endif

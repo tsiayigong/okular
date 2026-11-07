@@ -32,6 +32,10 @@ The approved reference is the 84-screen prototype at
 - Selection actions for copy, continuous text, highlight, comments and speech.
   Text comments store their selected range as PDF markup; the note editor derives
   the quote from that range after reopening, alongside the editable comment.
+- Floating presentation controls with a laser pointer, pen, translucent
+  highlighter, stroke eraser, per-page undo/clear, colors and stroke widths.
+  Existing drawing presets remain available. Ending a presentation offers to
+  retain its ink as document annotations, discard it, or continue presenting.
 - Windows Craft build and standalone ZIP packaging on the fork's GitHub Actions.
 
 ## Remaining implementation and validation
@@ -41,7 +45,7 @@ The approved reference is the 84-screen prototype at
 | 03–06 | Open/password/error/loading presentation |
 | 07–17, 66–71, 83–84 | Sidebar panel contents, reading states, dark surfaces and Windows acrylic validation |
 | 18–38 | Restyle and validate the existing annotation, form, signature, attachment, document information, save/export/print/share flows |
-| 39–40, 77–82 | Presentation laser/highlighter, presenter and audience windows, Beamer note layouts, ink retention |
+| 77, 80–81 | Presenter and audience windows, display assignment, Beamer note layouts, timer and next-slide preview |
 | 41–55 | Complete the unified settings pages and their shortcuts/toolbars/language integrations |
 | 56–65 | Complete menu grouping, help, credits and component licenses |
 | 72–76 | Refine appearance library layout; implement per-document experimental PDF background recognition and comparison |
@@ -56,7 +60,9 @@ undo/redo, save/reopen, and recovery of the selected quote.
 Shell tests also cover menu order across document switches, tab geometry and
 visibility, close/undo, the recent-file open/close/clear flow, and finding,
 applying and cancelling reading preferences through the settings window.
+Presentation tests cover laser hover/click behavior, stroke erasure, undo/clear,
+page-local history, cancellation on exit, and retained ink after PDF save/reopen.
 Local captures are under `output/okular-native`.
-Windows build 42374041687 passed compilation, executable version checking and
-standalone packaging at commit `1ecd739`. Packaged GUI rendering and full
+Windows build 42378210987 passed compilation, executable version checking and
+standalone packaging at commit `f58846d`. Packaged GUI rendering and full
 reference coverage remain pending.

@@ -4,4 +4,7 @@
         <file>part.rc</file>
         <file>part-viewermode.rc</file>
     </qresource>
+    <qresource prefix="/okular/icons">
+        <file alias="presentation-laser.svg">icons/presentation-laser.svg</file>
+    </qresource>
 </RCC>

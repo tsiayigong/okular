@@ -552,6 +552,7 @@ if(BUILD_DESKTOP)
     part/pageviewutils.cpp
     part/presentationsearchbar.cpp
     part/presentationwidget.cpp
+    part/presentationtools.cpp
     part/propertiesdialog.cpp
     part/revisionviewer.cpp
     part/searchlineedit.cpp

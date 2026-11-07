@@ -6229,3 +6229,55 @@ msgstr "窗口标题"
 
 msgid "Reading Background"
 msgstr "阅读背景"
+
+msgid "Pointer"
+msgstr "指针"
+
+msgid "Laser Pointer"
+msgstr "激光笔"
+
+msgid "Pen"
+msgstr "画笔"
+
+msgid "Undo Last Stroke"
+msgstr "撤销上一笔"
+
+msgid "Clear Page Ink"
+msgstr "清除当前页墨迹"
+
+msgid "Ink Color: %1"
+msgstr "墨迹颜色：%1"
+
+msgid "Stroke Width"
+msgstr "笔触粗细"
+
+msgid "%1 px"
+msgstr "%1 像素"
+
+msgid "Drawing Presets"
+msgstr "预设画笔"
+
+msgid "Stroke and Ink"
+msgstr "笔触与墨迹"
+
+msgid "Press Esc to end the presentation. Move the pointer to the bottom edge to show presentation tools."
+msgstr "按 Esc 结束演示。将鼠标移到屏幕底部可显示演示工具。"
+
+msgid "Keep the ink from this presentation?"
+msgstr "保留演示中的墨迹？"
+
+msgid "Pen and highlighter strokes can be kept as document annotations."
+msgstr "画笔与荧光笔的内容可以保留为文档批注。"
+
+msgid "Keep and End"
+msgstr "保留并结束"
+
+msgid "Discard and End"
+msgstr "清除并结束"
+
+msgid "Continue Presentation"
+msgstr "继续演示"
+
+msgctxt "Presentation tool"
+msgid "Highlighter"
+msgstr "荧光笔"

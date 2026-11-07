@@ -20,6 +20,7 @@ class PageViewItem;
 namespace Okular
 {
 class Annotation;
+class InkAnnotation;
 class Page;
 }
 
@@ -87,12 +88,16 @@ class SmoothPath
 public:
     SmoothPath(const QList<Okular::NormalizedPoint> &points, const QPen &pen, qreal opacity = 1.0, QPainter::CompositionMode compositionMode = QPainter::CompositionMode_SourceOver);
     void paint(QPainter *painter, double xScale, double yScale) const;
+    bool contains(const QPointF &position, const QSizeF &size, qreal radius) const;
+    // The caller owns the annotation until it is added to a document.
+    Okular::InkAnnotation *toInkAnnotation(const QSizeF &pageSize, const QSizeF &renderSize) const;
 
 private:
-    const QList<Okular::NormalizedPoint> points;
-    const QPen pen;
-    const qreal opacity;
-    const QPainter::CompositionMode compositionMode;
+    QPainterPath path(double xScale, double yScale) const;
+    QList<Okular::NormalizedPoint> points;
+    QPen pen;
+    qreal opacity;
+    QPainter::CompositionMode compositionMode;
 };
 
 /** @short SmoothPathEngine */

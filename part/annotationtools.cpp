@@ -11,6 +11,7 @@
 #include <QCursor>
 #include <QEvent>
 #include <QMouseEvent>
+#include <QPainterPathStroker>
 
 // local includes
 #include "core/annotations.h"
@@ -173,15 +174,43 @@ void SmoothPath::paint(QPainter *painter, double xScale, double yScale) const
         painter->setPen(pen);
         painter->setOpacity(opacity);
 
-        QPainterPath path;
-        QList<Okular::NormalizedPoint>::const_iterator pIt = points.begin(), pEnd = points.end();
-        path.moveTo(QPointF(pIt->x * xScale, pIt->y * yScale));
-        ++pIt;
-        for (; pIt != pEnd; ++pIt) {
-            path.lineTo(QPointF(pIt->x * xScale, pIt->y * yScale));
-        }
-        painter->drawPath(path);
+        painter->drawPath(path(xScale, yScale));
     }
+}
+
+QPainterPath SmoothPath::path(double xScale, double yScale) const
+{
+    QPainterPath result;
+    if (!points.isEmpty()) {
+        result.moveTo(points.first().x * xScale, points.first().y * yScale);
+        for (qsizetype i = 1; i < points.size(); ++i) {
+            result.lineTo(points[i].x * xScale, points[i].y * yScale);
+        }
+    }
+    return result;
+}
+
+bool SmoothPath::contains(const QPointF &position, const QSizeF &size, qreal radius) const
+{
+    QPainterPathStroker stroker;
+    stroker.setWidth(pen.widthF() + radius * 2);
+    stroker.setCapStyle(Qt::RoundCap);
+    stroker.setJoinStyle(Qt::RoundJoin);
+    return stroker.createStroke(path(size.width(), size.height())).contains(position);
+}
+
+Okular::InkAnnotation *SmoothPath::toInkAnnotation(const QSizeF &pageSize, const QSizeF &renderSize) const
+{
+    auto *annotation = new Okular::InkAnnotation;
+    annotation->setInkPaths({points});
+    const qreal xMargin = pen.widthF() / renderSize.width();
+    const qreal yMargin = pen.widthF() / renderSize.height();
+    const QRectF bounds = path(1, 1).boundingRect().adjusted(-xMargin, -yMargin, xMargin, yMargin).intersected(QRectF(0, 0, 1, 1));
+    annotation->setBoundingRectangle(Okular::NormalizedRect(bounds.left(), bounds.top(), bounds.right(), bounds.bottom()));
+    annotation->style().setColor(pen.color());
+    annotation->style().setWidth(pen.widthF() * pageSize.width() / renderSize.width());
+    annotation->style().setOpacity(opacity);
+    return annotation;
 }
 
 QList<Okular::Annotation *> SmoothPathEngine::end()

@@ -17,6 +17,8 @@
 
 #include <KActionCollection>
 #include <KCursor>
+#include <KIconColors>
+#include <KIconLoader>
 #include <KLineEdit>
 #include <KLocalizedString>
 #include <KMessageBox>
@@ -24,6 +26,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QCloseEvent>
 #include <QDialog>
 #include <QEvent>
 #include <QFontMetrics>
@@ -32,7 +35,10 @@
 #include <QImage>
 #include <QLabel>
 #include <QLayout>
+#include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
+#include <QPushButton>
 #include <QRandomGenerator>
 #include <QScreen>
 #include <QStyle>
@@ -50,6 +56,7 @@
 #endif
 
 // system includes
+#include <algorithm>
 #include <math.h>
 #include <stdlib.h>
 
@@ -68,6 +75,7 @@
 #include "gui/pagepainter.h"
 #include "gui/priorities.h"
 #include "presentationsearchbar.h"
+#include "presentationtools.h"
 #include "settings.h"
 #include "settings_core.h"
 #include "videowidget.h"
@@ -113,6 +121,7 @@ struct PresentationFrame {
     QRect geometry;
     QHash<const Okular::Movie *, VideoWidget *> videoWidgets;
     std::vector<SmoothPath> drawings;
+    std::vector<std::vector<SmoothPath>> drawingUndo;
 };
 
 // a custom QToolBar that basically does not propagate the event if the widget
@@ -151,7 +160,7 @@ PresentationWidget::PresentationWidget(QWidget *parent, Okular::Document *doc, D
     , m_parentWidget(parent)
     , m_document(doc)
     , m_frameIndex(-1)
-    , m_topBar(nullptr)
+    , m_controlBar(nullptr)
     , m_pagesEdit(nullptr)
     , m_searchBar(nullptr)
     , m_ac(collection)
@@ -176,75 +185,69 @@ PresentationWidget::PresentationWidget(QWidget *parent, Okular::Document *doc, D
 
     m_width = -1;
 
-    // create top toolbar
-    m_topBar = new PresentationToolBar(this);
-    m_topBar->setObjectName(QStringLiteral("presentationBar"));
-    m_topBar->setMovable(false);
-    m_topBar->layout()->setContentsMargins(0, 0, 0, 0);
-    m_topBar->addAction(QIcon::fromTheme(layoutDirection() == Qt::RightToLeft ? QStringLiteral("go-next") : QStringLiteral("go-previous")), i18n("Previous Page"), this, &PresentationWidget::slotPrevPage);
-    m_pagesEdit = new KLineEdit(m_topBar);
+    // Floating presentation controls.
+    const KIconColors controlsColors(QColor(QStringLiteral("#d3d9e2")));
+    m_controlBar = new PresentationToolBar(this);
+    m_controlBar->setObjectName(QStringLiteral("presentationBar"));
+    m_controlBar->setMovable(false);
+    m_controlBar->layout()->setContentsMargins(8, 4, 8, 4);
+    m_controlBar->setIconSize(QSize(20, 20));
+    m_controlBar->addAction(KDE::icon(layoutDirection() == Qt::RightToLeft ? QStringLiteral("go-next") : QStringLiteral("go-previous"), controlsColors), i18n("Previous Page"), this, &PresentationWidget::slotPrevPage);
+    m_pagesEdit = new KLineEdit(m_controlBar);
     QSizePolicy sp = m_pagesEdit->sizePolicy();
     sp.setHorizontalPolicy(QSizePolicy::Minimum);
     m_pagesEdit->setSizePolicy(sp);
     QFontMetrics fm(m_pagesEdit->font());
-    QStyleOptionFrame option;
-    option.initFrom(m_pagesEdit);
-    m_pagesEdit->setMaximumWidth(fm.horizontalAdvance(QString::number(m_document->pages())) + 2 * style()->pixelMetric(QStyle::PM_DefaultFrameWidth, &option, m_pagesEdit) +
-                                 4); // the 4 comes from 2*horizontalMargin, horizontalMargin being a define in qlineedit.cpp
+    m_pagesEdit->setFixedWidth(qMax(36, fm.horizontalAdvance(QString::number(m_document->pages())) + 16));
     QIntValidator *validator = new QIntValidator(1, m_document->pages(), m_pagesEdit);
     m_pagesEdit->setValidator(validator);
-    m_topBar->addWidget(m_pagesEdit);
-    QLabel *pagesLabel = new QLabel(m_topBar);
+    m_controlBar->addWidget(m_pagesEdit);
+    QLabel *pagesLabel = new QLabel(m_controlBar);
     pagesLabel->setText(QLatin1String(" / ") + QString::number(m_document->pages()) + QLatin1String(" "));
-    m_topBar->addWidget(pagesLabel);
+    m_controlBar->addWidget(pagesLabel);
     connect(m_pagesEdit, &QLineEdit::returnPressed, this, &PresentationWidget::slotPageChanged);
-    m_topBar->addAction(QIcon::fromTheme(layoutDirection() == Qt::RightToLeft ? QStringLiteral("go-previous") : QStringLiteral("go-next")), i18n("Next Page"), this, &PresentationWidget::slotNextPage);
-    m_topBar->addSeparator();
+    m_controlBar->addAction(KDE::icon(layoutDirection() == Qt::RightToLeft ? QStringLiteral("go-previous") : QStringLiteral("go-next"), controlsColors), i18n("Next Page"), this, &PresentationWidget::slotNextPage);
+    m_controlBar->addSeparator();
     QAction *playPauseAct = collection->action(QStringLiteral("presentation_play_pause"));
     playPauseAct->setEnabled(true);
     connect(playPauseAct, &QAction::triggered, this, &PresentationWidget::slotTogglePlayPause);
-    m_topBar->addAction(playPauseAct);
+    m_controlBar->addAction(playPauseAct);
     addAction(playPauseAct);
-    m_topBar->addSeparator();
+    m_controlBar->addSeparator();
 
-    const QList<QAction *> actionsList = drawingToolActions->actions();
-    for (QAction *action : actionsList) {
-        action->setEnabled(true);
-        m_topBar->addAction(action);
-        addAction(action);
-    }
-    connect(drawingToolActions, &DrawingToolActions::changeEngine, this, &PresentationWidget::slotChangeDrawingToolEngine);
-    connect(drawingToolActions, &DrawingToolActions::actionsRecreated, this, &PresentationWidget::slotAddDrawingToolActions);
+    m_tools = new PresentationTools(drawingToolActions, this);
+    m_tools->addToToolBar(m_controlBar);
+    connect(m_tools, &PresentationTools::changed, this, &PresentationWidget::updateDrawingTool);
+    connect(m_tools, &PresentationTools::undoRequested, this, &PresentationWidget::undoDrawing);
+    connect(m_tools, &PresentationTools::clearRequested, this, &PresentationWidget::clearDrawings);
 
     QAction *eraseDrawingAct = collection->action(QStringLiteral("presentation_erase_drawings"));
     eraseDrawingAct->setEnabled(true);
     connect(eraseDrawingAct, &QAction::triggered, this, &PresentationWidget::clearDrawings);
-    m_topBar->addAction(eraseDrawingAct);
     addAction(eraseDrawingAct);
 
     const int screenCount = QApplication::screens().count();
     if (screenCount > 1) {
-        m_topBar->addSeparator();
-        m_screenSelect = new KSelectAction(QIcon::fromTheme(QStringLiteral("video-display")), i18n("Switch Screen"), m_topBar);
+        m_controlBar->addSeparator();
+        m_screenSelect = new KSelectAction(KDE::icon(QStringLiteral("video-display"), controlsColors), i18n("Switch Screen"), m_controlBar);
         m_screenSelect->setToolBarMode(KSelectAction::MenuMode);
         m_screenSelect->setToolButtonPopupMode(QToolButton::InstantPopup);
-        m_topBar->addAction(m_screenSelect);
+        m_controlBar->addAction(m_screenSelect);
         for (int i = 0; i < screenCount; ++i) {
             QAction *act = m_screenSelect->addAction(i18nc("%1 is the screen number (0, 1, ...)", "Screen %1", i));
             act->setData(QVariant::fromValue(i));
         }
     }
-    QWidget *spacer = new QWidget(m_topBar);
-    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
-    m_topBar->addWidget(spacer);
-    m_topBar->addAction(QIcon::fromTheme(QStringLiteral("application-exit")), i18n("Exit Presentation Mode"), this, &PresentationWidget::close);
-    m_topBar->setAutoFillBackground(true);
-    showTopBar(false);
-    // change topbar background color
-    QPalette p = m_topBar->palette();
-    p.setColor(QPalette::Active, QPalette::Button, Qt::gray);
-    p.setColor(QPalette::Active, QPalette::Window, Qt::darkGray);
-    m_topBar->setPalette(p);
+    m_controlBar->addSeparator();
+    m_controlBar->addAction(KDE::icon(QStringLiteral("application-exit"), controlsColors), i18n("Exit Presentation Mode"), this, &PresentationWidget::close);
+    m_controlBar->setStyleSheet(
+        QStringLiteral("QToolBar#presentationBar { background: rgba(38, 44, 53, 242); border: 1px solid #48505c; border-radius: 6px; spacing: 2px; }"
+                       "QToolBar#presentationBar QToolButton { color: #f2f4f8; border: 0; border-radius: 4px; padding: 6px; }"
+                       "QToolBar#presentationBar QToolButton:hover { background: #4a5361; }"
+                       "QToolBar#presentationBar QToolButton:checked { background: #0a84ff; }"
+                       "QToolBar#presentationBar QLabel { color: #d3d9e2; }"
+                       "QToolBar#presentationBar QLineEdit { color: #f2f4f8; background: #343d48; border: 0; padding: 4px; }"));
+    showControls(false);
 
     // Grab swipe gestures to change pages
     grabGesture(Qt::SwipeGesture);
@@ -439,6 +442,8 @@ void PresentationWidget::notifyCurrentPageChanged(int previousPage, int currentP
 
     if (currentPage != -1) {
         m_frameIndex = currentPage;
+        updateDrawingTool();
+        updateInkActions();
 
         // check if pixmap exists or else request it
         PresentationFrame *frame = m_frames[m_frameIndex];
@@ -517,10 +522,10 @@ void PresentationWidget::setPlayPauseIcon()
 {
     QAction *playPauseAction = m_ac->action(QStringLiteral("presentation_play_pause"));
     if (m_nextPageTimer->isActive()) {
-        playPauseAction->setIcon(QIcon::fromTheme(QStringLiteral("media-playback-pause")));
+        playPauseAction->setIcon(KDE::icon(QStringLiteral("media-playback-pause"), KIconColors(QColor(QStringLiteral("#d3d9e2")))));
         playPauseAction->setToolTip(i18nc("For Presentation", "Pause"));
     } else {
-        playPauseAction->setIcon(QIcon::fromTheme(QStringLiteral("media-playback-start")));
+        playPauseAction->setIcon(KDE::icon(QStringLiteral("media-playback-start"), KIconColors(QColor(QStringLiteral("#d3d9e2")))));
         playPauseAction->setToolTip(i18nc("For Presentation", "Play"));
     }
 }
@@ -529,10 +534,15 @@ bool PresentationWidget::eventFilter(QObject *o, QEvent *e)
 {
     if (o == qApp) {
         if (e->type() == QTabletEvent::TabletEnterProximity) {
-            setCursor(QCursor(Qt::CrossCursor));
+            setCursor(m_tools->tool() == PresentationTools::Laser ? Qt::BlankCursor : Qt::CrossCursor);
         } else if (e->type() == QTabletEvent::TabletLeaveProximity) {
-            setCursor(QCursor(Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::Hidden ? Qt::BlankCursor : Qt::ArrowCursor));
-            if (Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay) {
+            const bool pointer = m_tools->tool() == PresentationTools::Pointer;
+            const bool delayed = pointer && m_controlBar->isHidden() && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay;
+            KCursor::setAutoHideCursor(this, delayed);
+            setMouseTracking(true);
+            const bool hidden = m_tools->tool() == PresentationTools::Laser || (pointer && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::Hidden);
+            setCursor(hidden ? Qt::BlankCursor : pointer ? Qt::ArrowCursor : Qt::CrossCursor);
+            if (delayed) {
                 // Trick KCursor to hide the cursor if needed by sending an "unknown" key press event
                 // Send also the key release to make the world happy even it's probably not needed
                 QKeyEvent kp(QEvent::KeyPress, 0, Qt::NoModifier);
@@ -626,11 +636,11 @@ void PresentationWidget::keyPressEvent(QKeyEvent *e)
         slotLastPage();
         break;
     case Qt::Key_Escape:
-        if (!m_topBar->isHidden()) {
-            showTopBar(false);
-        } else {
-            close();
-        }
+        close();
+        break;
+    case Qt::Key_F6:
+        showControls(true);
+        m_pagesEdit->setFocus();
         break;
     }
 }
@@ -666,6 +676,18 @@ void PresentationWidget::mousePressEvent(QMouseEvent *e)
         return;
     }
 
+    if (m_tools->tool() == PresentationTools::Laser) {
+        updateLaser(e->position());
+        return;
+    }
+    if (m_tools->tool() == PresentationTools::Eraser) {
+        m_erasing = e->button() == Qt::LeftButton;
+        m_erasureSaved = false;
+        if (m_erasing) {
+            eraseDrawing(e->position());
+        }
+        return;
+    }
     if (m_drawingEngine) {
         QRect r = routeMouseDrawingEvent(e);
         if (r.isValid()) {
@@ -747,6 +769,10 @@ void PresentationWidget::mousePressEvent(QMouseEvent *e)
 
 void PresentationWidget::mouseReleaseEvent(QMouseEvent *e)
 {
+    if (m_tools->tool() == PresentationTools::Laser || m_tools->tool() == PresentationTools::Eraser) {
+        m_erasing = false;
+        return;
+    }
     if (m_drawingEngine) {
         routeMouseDrawingEvent(e);
         return;
@@ -780,32 +806,28 @@ void PresentationWidget::mouseMoveEvent(QMouseEvent *e)
     }
 
     // update cursor and tooltip if hovering a link
-    if (!m_drawingEngine && Okular::Settings::slidesCursor() != Okular::Settings::EnumSlidesCursor::Hidden) {
+    if (m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() != Okular::Settings::EnumSlidesCursor::Hidden) {
         testCursorOnLink(e->position());
     }
 
-    if (!m_topBar->isHidden()) {
-        // hide a shown bar when exiting the area
-        if (e->position().y() > (m_topBar->height() + 1)) {
-            showTopBar(false);
-            setFocus(Qt::OtherFocusReason);
+    if (!m_controlBar->isHidden() && e->position().y() < m_controlBar->y() - 12 && !QApplication::activePopupWidget()) {
+        showControls(false);
+        setFocus(Qt::OtherFocusReason);
+    } else if (m_controlBar->isHidden() && e->position().y() >= height() - 8 && e->buttons() == Qt::NoButton) {
+        showControls(true);
+    }
+    if (m_tools->tool() == PresentationTools::Laser) {
+        updateLaser(e->position());
+    } else if (m_erasing) {
+        eraseDrawing(e->position());
+    } else if (m_drawingEngine && e->buttons() != Qt::NoButton) {
+        QRect r = routeMouseDrawingEvent(e);
+        if (r.isValid()) {
+            m_drawingRect |= r.translated(m_frames[m_frameIndex]->geometry.topLeft());
+            update(m_drawingRect);
         }
-    } else {
-        if (m_drawingEngine && e->buttons() != Qt::NoButton) {
-            QRect r = routeMouseDrawingEvent(e);
-            if (r.isValid()) {
-                m_drawingRect |= r.translated(m_frames[m_frameIndex]->geometry.topLeft());
-                update(m_drawingRect);
-            }
-        } else {
-            // show the bar if reaching top 2 pixels
-            if (e->position().y() <= 1) {
-                showTopBar(true);
-            } else if ((QApplication::mouseButtons() & Qt::LeftButton) && m_overlayGeometry.contains(e->pos())) {
-                // handle "dragging the wheel" if clicking on its geometry
-                overlayClick(e->pos());
-            }
-        }
+    } else if (m_tools->tool() == PresentationTools::Pointer && (e->buttons() & Qt::LeftButton) && m_overlayGeometry.contains(e->pos())) {
+        overlayClick(e->pos());
     }
 }
 
@@ -887,26 +909,38 @@ void PresentationWidget::paintEvent(QPaintEvent *pe)
 
         const QSize pmSize(geom.width() * dpr, geom.height() * dpr);
         QPixmap pm(pmSize);
+        pm.setDevicePixelRatio(dpr);
         pm.fill(Qt::transparent);
         QPainter pmPainter(&pm);
 
-        pm.setDevicePixelRatio(dpr);
         pmPainter.setRenderHints(QPainter::Antialiasing);
 
         // Paint old paths
         for (const SmoothPath &drawing : m_frames[m_frameIndex]->drawings) {
-            drawing.paint(&pmPainter, pmSize.width(), pmSize.height());
+            drawing.paint(&pmPainter, geom.width(), geom.height());
         }
 
         // Paint the path that is currently being drawn by the user
         if (m_drawingEngine && m_drawingRect.intersects(pe->rect())) {
-            m_drawingEngine->paint(&pmPainter, pmSize.width(), pmSize.height(), m_drawingRect.intersected(pe->rect()));
+            m_drawingEngine->paint(&pmPainter, geom.width(), geom.height(), m_drawingRect.intersected(pe->rect()));
         }
 
         painter.setRenderHints(QPainter::Antialiasing);
         painter.drawPixmap(geom.topLeft(), pm);
 
         painter.restore();
+    }
+    if (m_laserVisible) {
+        QRadialGradient glow(m_laserPosition, 13);
+        const QColor color = m_tools->color();
+        glow.setColorAt(0, Qt::white);
+        glow.setColorAt(0.22, color);
+        glow.setColorAt(0.5, QColor(color.red(), color.green(), color.blue(), 150));
+        glow.setColorAt(1, Qt::transparent);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(glow);
+        painter.drawEllipse(m_laserPosition, 13, 13);
     }
     painter.end();
 }
@@ -921,13 +955,7 @@ void PresentationWidget::resizeEvent(QResizeEvent *re)
         return;
     }
 
-    // BEGIN Top toolbar
-    // tool bar height in pixels, make it large enough to hold the text fields with the page numbers
-    const int toolBarHeight = m_pagesEdit->height() * 1.5;
-
-    m_topBar->setGeometry(0, 0, width(), toolBarHeight);
-    m_topBar->setIconSize(QSize(toolBarHeight * 0.75, toolBarHeight * 0.75));
-    // END Top toolbar
+    positionControls();
 
     // BEGIN Content area
     // update the frames
@@ -948,10 +976,10 @@ void PresentationWidget::resizeEvent(QResizeEvent *re)
 
 void PresentationWidget::enterEvent(QEnterEvent *e)
 {
-    if (!m_topBar->isHidden()) {
+    if (!m_controlBar->isHidden()) {
         // This can happen when we exited the widget via a "tooltip" and the tooltip disappears
-        if (e->position().y() > (m_topBar->height() + 1)) {
-            showTopBar(false);
+        if (e->position().y() < m_controlBar->y() - 12 && !QApplication::activePopupWidget()) {
+            showControls(false);
         }
     }
     QWidget::enterEvent(e);
@@ -960,8 +988,10 @@ void PresentationWidget::enterEvent(QEnterEvent *e)
 void PresentationWidget::leaveEvent(QEvent *e)
 {
     Q_UNUSED(e)
+    m_laserVisible = false;
+    update();
 
-    if (!m_topBar->isHidden()) {
+    if (!m_controlBar->isHidden()) {
         if (QToolTip::isVisible()) {
             // make sure we're not hovering over the tooltip
             // because the world is sad, this works differently on Wayland and X11
@@ -982,7 +1012,7 @@ void PresentationWidget::leaveEvent(QEvent *e)
                 }
             }
         }
-        showTopBar(false);
+        showControls(false);
     }
 }
 // </widget events>
@@ -1137,7 +1167,7 @@ void PresentationWidget::generatePage(bool disableTransition)
     }
 
     // update cursor + tooltip
-    if (!m_drawingEngine && Okular::Settings::slidesCursor() != Okular::Settings::EnumSlidesCursor::Hidden) {
+    if (m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() != Okular::Settings::EnumSlidesCursor::Hidden) {
         QPoint p = mapFromGlobal(QCursor::pos());
         testCursorOnLink(p);
     }
@@ -1350,9 +1380,8 @@ QRect PresentationWidget::routeMouseDrawingEvent(QMouseEvent *e)
     // figure out the event type and button
     AnnotatorEngine::decodeEvent(e, &eventType, &button);
 
-    static bool hasclicked = false;
     if (eventType == AnnotatorEngine::Press) {
-        hasclicked = true;
+        m_drawingPressed = button == AnnotatorEngine::Left;
     }
 
     QPointF mousePos = e->position();
@@ -1361,7 +1390,7 @@ QRect PresentationWidget::routeMouseDrawingEvent(QMouseEvent *e)
     QRect ret;
     bool isInside = nX >= 0 && nX < 1 && nY >= 0 && nY < 1;
 
-    if (hasclicked && !isInside) {
+    if (m_drawingPressed && !isInside) {
         // Fake a move to the last border pos
         nX = qBound(0., nX, 1.);
         nY = qBound(0., nY, 1.);
@@ -1370,7 +1399,7 @@ QRect PresentationWidget::routeMouseDrawingEvent(QMouseEvent *e)
         // Fake a release in the following lines
         eventType = AnnotatorEngine::Release;
         isInside = true;
-    } else if (!hasclicked && isInside) {
+    } else if (!m_drawingPressed && isInside && eventType == AnnotatorEngine::Move && button == AnnotatorEngine::Left) {
         // we're coming from the outside, pretend we started clicking at the closest border
         if (nX < (1 - nX) && nX < nY && nX < (1 - nY)) {
             nX = 0;
@@ -1382,21 +1411,24 @@ QRect PresentationWidget::routeMouseDrawingEvent(QMouseEvent *e)
             nY = 1;
         }
 
-        hasclicked = true;
+        m_drawingPressed = true;
         eventType = AnnotatorEngine::Press;
     }
 
-    if (hasclicked && isInside) {
+    if (m_drawingPressed && isInside) {
         ret = m_drawingEngine->event(eventType, button, modifiers, nX, nY, geom.width(), geom.height(), page);
     }
 
     if (eventType == AnnotatorEngine::Release) {
-        hasclicked = false;
+        m_drawingPressed = false;
     }
 
     if (m_drawingEngine->creationCompleted()) {
         // add drawing to current page
-        m_frames[m_frameIndex]->drawings.emplace_back(m_drawingEngine->endSmoothPath());
+        auto *frame = m_frames[m_frameIndex];
+        frame->drawingUndo.push_back(frame->drawings);
+        frame->drawings.emplace_back(m_drawingEngine->endSmoothPath());
+        updateInkActions();
 
         // remove the actual drawer and create a new one just after
         // that - that gives continuous drawing
@@ -1617,11 +1649,7 @@ void PresentationWidget::slotDelayedEvents()
     }
 
     // inform user on how to exit from presentation mode
-    KMessageBox::information(
-        this,
-        i18n("There are two ways of exiting presentation mode, you can press either ESC key or click with the quit button that appears when placing the mouse in the top-right corner. Of course you can cycle windows (Alt+TAB by default)"),
-        QString(),
-        QStringLiteral("presentationInfo"));
+    KMessageBox::information(this, i18n("Press Esc to end the presentation. Move the pointer to the bottom edge to show presentation tools."), QString(), QStringLiteral("presentationInfo"));
 }
 
 void PresentationWidget::slotPageChanged()
@@ -1635,38 +1663,120 @@ void PresentationWidget::slotPageChanged()
     changePage(p - 1);
 }
 
-void PresentationWidget::slotChangeDrawingToolEngine(const QDomElement &element)
+void PresentationWidget::updateDrawingTool()
 {
-    if (element.isNull()) {
-        delete m_drawingEngine;
-        m_drawingEngine = nullptr;
-        m_drawingRect = QRect();
-        setCursor(Qt::ArrowCursor);
+    delete m_drawingEngine;
+    m_currentDrawingToolElement = m_tools->drawingEngine();
+    m_drawingEngine = m_currentDrawingToolElement.isNull() ? nullptr : new SmoothPathEngine(m_currentDrawingToolElement);
+    m_drawingRect = QRect();
+    m_drawingPressed = false;
+    m_erasing = false;
+    m_laserVisible = false;
+    KCursor::setAutoHideCursor(this, m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay);
+    setMouseTracking(true);
+    if (m_tools->tool() == PresentationTools::Laser || (m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::Hidden)) {
+        setCursor(Qt::BlankCursor);
     } else {
-        m_drawingEngine = new SmoothPathEngine(element);
-        setCursor(QCursor(QPixmap(QStringLiteral("pencil")), Qt::ArrowCursor));
-        m_currentDrawingToolElement = element;
+        setCursor(m_tools->tool() == PresentationTools::Pointer ? Qt::ArrowCursor : Qt::CrossCursor);
+    }
+    update();
+}
+
+void PresentationWidget::updateLaser(const QPointF &position)
+{
+    const QRect oldRect = QRectF(m_laserPosition.x() - 14, m_laserPosition.y() - 14, 28, 28).toAlignedRect();
+    m_laserPosition = position;
+    m_laserVisible = m_frameIndex >= 0 && m_frames[m_frameIndex]->geometry.contains(position.toPoint());
+    update(oldRect.united(QRectF(position.x() - 14, position.y() - 14, 28, 28).toAlignedRect()));
+}
+
+void PresentationWidget::eraseDrawing(const QPointF &position)
+{
+    if (m_frameIndex < 0) {
+        return;
+    }
+    auto *frame = m_frames[m_frameIndex];
+    const auto hit = [frame, position](const SmoothPath &path) { return path.contains(position - frame->geometry.topLeft(), frame->geometry.size(), 10); };
+    if (std::any_of(frame->drawings.cbegin(), frame->drawings.cend(), hit)) {
+        if (!m_erasureSaved) {
+            frame->drawingUndo.push_back(frame->drawings);
+            m_erasureSaved = true;
+        }
+        frame->drawings.erase(std::remove_if(frame->drawings.begin(), frame->drawings.end(), hit), frame->drawings.end());
+        updateInkActions();
+        update();
     }
 }
 
-void PresentationWidget::slotAddDrawingToolActions()
+void PresentationWidget::undoDrawing()
 {
-    const DrawingToolActions *drawingToolActions = qobject_cast<DrawingToolActions *>(sender());
-
-    const QList<QAction *> actionsList = drawingToolActions->actions();
-    for (QAction *action : actionsList) {
-        action->setEnabled(true);
-        m_topBar->addAction(action);
-        addAction(action);
+    if (m_frameIndex >= 0 && !m_frames[m_frameIndex]->drawingUndo.empty()) {
+        auto *frame = m_frames[m_frameIndex];
+        frame->drawings = std::move(frame->drawingUndo.back());
+        frame->drawingUndo.pop_back();
+        updateInkActions();
+        update();
     }
+}
+
+void PresentationWidget::updateInkActions()
+{
+    const auto *frame = m_frameIndex >= 0 ? m_frames[m_frameIndex] : nullptr;
+    m_tools->setInkActionsEnabled(frame && !frame->drawingUndo.empty(), frame && !frame->drawings.empty());
 }
 
 void PresentationWidget::clearDrawings()
 {
-    if (m_frameIndex != -1) {
-        m_frames[m_frameIndex]->drawings.clear();
+    if (m_frameIndex >= 0 && !m_frames[m_frameIndex]->drawings.empty()) {
+        auto *frame = m_frames[m_frameIndex];
+        frame->drawingUndo.push_back(frame->drawings);
+        frame->drawings.clear();
+        updateInkActions();
     }
     update();
+}
+
+void PresentationWidget::closeEvent(QCloseEvent *event)
+{
+    const bool hasInk = std::any_of(m_frames.cbegin(), m_frames.cend(), [](const PresentationFrame *frame) { return !frame->drawings.empty(); });
+    if (hasInk) {
+        const int remaining = m_nextPageTimer->remainingTime();
+        m_nextPageTimer->stop();
+        QMessageBox dialog(QMessageBox::Question, i18n("End Presentation"), i18n("Keep the ink from this presentation?"), QMessageBox::NoButton, this);
+        dialog.setInformativeText(i18n("Pen and highlighter strokes can be kept as document annotations."));
+        auto *keep = dialog.addButton(i18n("Keep and End"), QMessageBox::AcceptRole);
+        auto *discard = dialog.addButton(i18n("Discard and End"), QMessageBox::DestructiveRole);
+        auto *cancel = dialog.addButton(i18n("Continue Presentation"), QMessageBox::RejectRole);
+        keep->setEnabled(m_document->isAllowed(Okular::AllowNotes) && m_document->canSaveChanges(Okular::Document::SaveAnnotationsCapability));
+        dialog.setDefaultButton(keep->isEnabled() ? keep : cancel);
+        dialog.setEscapeButton(cancel);
+        dialog.exec();
+        if (dialog.clickedButton() == keep) {
+            for (int page = 0; page < m_frames.size(); ++page) {
+                const auto *frame = m_frames[page];
+                for (const auto &drawing : frame->drawings) {
+                    auto *annotation = drawing.toInkAnnotation(QSizeF(frame->page->width(), frame->page->height()), frame->geometry.size());
+                    annotation->setAuthor(Okular::Settings::identityAuthor());
+                    annotation->setCreationDate(QDateTime::currentDateTime());
+                    annotation->setModificationDate(annotation->creationDate());
+                    m_document->addPageAnnotation(page, annotation);
+                }
+            }
+        } else if (dialog.clickedButton() != discard) {
+            event->ignore();
+            if (remaining >= 0) {
+                m_nextPageTimer->start(remaining);
+            }
+            return;
+        }
+    }
+    QWidget::closeEvent(event);
+}
+
+void PresentationWidget::positionControls()
+{
+    const QSize controlsSize = m_controlBar->sizeHint().boundedTo(QSize(qMax(1, width() - 24), 56));
+    m_controlBar->setGeometry((width() - controlsSize.width()) / 2, height() - controlsSize.height() - 16, controlsSize.width(), controlsSize.height());
 }
 
 void PresentationWidget::invalidatePixmaps()
@@ -1773,38 +1883,18 @@ void PresentationWidget::allowPowerManagement()
 #endif // HAVE_DBUS
 }
 
-void PresentationWidget::showTopBar(bool show)
+void PresentationWidget::showControls(bool show)
 {
+    positionControls();
+    m_controlBar->setVisible(show);
+    KCursor::setAutoHideCursor(this, !show && m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay);
     if (show) {
-        m_topBar->show();
-
-        // Don't autohide the mouse cursor if it's over the toolbar
-        if (Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay) {
-            KCursor::setAutoHideCursor(this, false);
-        }
-
-        // Always show a cursor when topBar is visible
-        if (!m_drawingEngine) {
-            setCursor(QCursor(Qt::ArrowCursor));
-        }
+        setCursor(Qt::ArrowCursor);
+    } else if (m_tools->tool() == PresentationTools::Laser || (m_tools->tool() == PresentationTools::Pointer && Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::Hidden)) {
+        setCursor(Qt::BlankCursor);
     } else {
-        m_topBar->hide();
-
-        // Reenable autohide if need be when leaving the toolbar
-        if (Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::HiddenDelay) {
-            KCursor::setAutoHideCursor(this, true);
-        }
-
-        // Or hide the cursor again if hidden cursor is enabled
-        else if (Okular::Settings::slidesCursor() == Okular::Settings::EnumSlidesCursor::Hidden) {
-            // Don't hide the cursor if drawing mode is on
-            if (!m_drawingEngine) {
-                setCursor(QCursor(Qt::BlankCursor));
-            }
-        }
+        setCursor(m_tools->tool() == PresentationTools::Pointer ? Qt::ArrowCursor : Qt::CrossCursor);
     }
-
-    // Make sure mouse tracking isn't off after the KCursor::setAutoHideCursor() calls
     setMouseTracking(true);
 }
 

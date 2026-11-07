@@ -108,6 +108,7 @@ void DrawingToolActions::reparseConfig()
     qDeleteAll(m_actions);
     m_actions.clear();
     loadTools();
+    Q_EMIT actionsRecreated();
 }
 
 void DrawingToolActions::actionTriggered()

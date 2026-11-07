@@ -30,17 +30,20 @@
 #include <QJsonObject>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QMenuBar>
 #include <QMenu>
+#include <QMenuBar>
+#include <QMessageBox>
 #include <QPrintDialog>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QTabBar>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTimer>
 #include <qwidget.h>
 
+#include "../core/annotations.h"
 #include "../core/document_p.h"
 #include "../core/page.h"
 #include "../part/findbar.h"
@@ -72,7 +75,7 @@ public:
     {
         return part->m_document;
     }
-    QWidget *presentationWidget(Okular::Part *part) const
+    PresentationWidget *presentationWidget(Okular::Part *part) const
     {
         return part->m_presentationWidget;
     }
@@ -146,6 +149,7 @@ private Q_SLOTS:
     void testDesktopAppearance();
     void testAppearanceLibrary();
     void testSettingsNavigation();
+    void testPresentationTools();
     void testWelcomeScreen();
 
 private:
@@ -388,6 +392,115 @@ void MainShellTest::testSettingsNavigation()
     QCOMPARE(dialog->findChildren<QWidget *>(QStringLiteral("kcfg_SmoothScrolling")).size(), 1);
     QCOMPARE(dialog->findChildren<QWidget *>(QStringLiteral("kcfg_BackgroundColor")).size(), 1);
     dialog->reject();
+}
+
+void MainShellTest::testPresentationTools()
+{
+    Okular::Settings::setSlidesShowSummary(false);
+    Okular::Settings::setSlidesShowProgress(false);
+    Okular::Settings::setSlidesTransition(Okular::Settings::EnumSlidesTransition::NoTransitions);
+    auto *shell = new Shell;
+    shell->show();
+    QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/simple-multipage.pdf")), QString()));
+    auto *part = qobject_cast<Okular::Part *>(shell->m_tabs[0].part);
+    auto *document = partDocument(part);
+    document->setViewportPage(0);
+    QVERIFY(QMetaObject::invokeMethod(part, "slotShowPresentation"));
+    auto *view = presentationWidget(part);
+    QVERIFY(view);
+    QTRY_VERIFY(view->isVisible());
+    QTRY_VERIFY(document->page(0)->hasPixmap(view));
+    auto *laser = view->findChild<QAction *>(QStringLiteral("presentation_laser"));
+    auto *pen = view->findChild<QAction *>(QStringLiteral("presentation_pen"));
+    auto *highlighter = view->findChild<QAction *>(QStringLiteral("presentation_highlighter"));
+    auto *eraser = view->findChild<QAction *>(QStringLiteral("presentation_eraser"));
+    auto *pointer = view->findChild<QAction *>(QStringLiteral("presentation_pointer"));
+    auto *undo = view->findChild<QAction *>(QStringLiteral("presentation_undo_ink"));
+    auto *clear = view->findChild<QAction *>(QStringLiteral("presentation_clear_ink"));
+    QVERIFY(laser && pen && highlighter && eraser && pointer && undo && clear);
+    const QPoint start(view->width() * 0.35, view->height() * 0.4);
+    const QPoint end(view->width() * 0.65, start.y());
+    const QPoint middle = (start + end) / 2;
+    const QImage original = view->grab().toImage();
+    laser->trigger();
+    QVERIFY(laser->isChecked());
+    QMouseEvent hover(QEvent::MouseMove, middle, view->mapToGlobal(middle), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(view, &hover);
+    QTRY_VERIFY(view->grab().toImage() != original);
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier, middle);
+    QCOMPARE(document->currentPage(), 0u);
+    QVERIFY(document->page(0)->annotations().isEmpty());
+    pointer->trigger();
+    QTRY_COMPARE(view->grab().toImage(), original);
+
+    const auto draw = [view, start, end](int offset) {
+        const QPoint first = start + QPoint(0, offset);
+        const QPoint last = end + QPoint(0, offset);
+        QTest::mousePress(view, Qt::LeftButton, Qt::NoModifier, first);
+        QMouseEvent move(QEvent::MouseMove, last, view->mapToGlobal(last), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(view, &move);
+        QTest::mouseRelease(view, Qt::LeftButton, Qt::NoModifier, last);
+    };
+    pen->trigger();
+    draw(0);
+    QTRY_VERIFY(undo->isEnabled());
+    const QImage ink = view->grab().toImage();
+    QVERIFY(ink != original);
+    eraser->trigger();
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier, middle);
+    QTRY_COMPARE(view->grab().toImage(), original);
+    undo->trigger();
+    QTRY_COMPARE(view->grab().toImage(), ink);
+    clear->trigger();
+    QTRY_COMPARE(view->grab().toImage(), original);
+    undo->trigger();
+    QTRY_COMPARE(view->grab().toImage(), ink);
+
+    QTest::keyClick(view, Qt::Key_Right);
+    QTRY_COMPARE(document->currentPage(), 1u);
+    QVERIFY(!undo->isEnabled());
+    QTest::keyClick(view, Qt::Key_Left);
+    QTRY_COMPARE(document->currentPage(), 0u);
+    QVERIFY(undo->isEnabled());
+    highlighter->trigger();
+    draw(45);
+    const auto chooseCloseAction = [view](QMessageBox::ButtonRole role) {
+        QTimer::singleShot(0, view, [view, role] {
+            auto *message = view->findChild<QMessageBox *>();
+            QVERIFY(message);
+            for (auto *button : message->buttons()) {
+                if (message->buttonRole(button) == role) {
+                    button->click();
+                    return;
+                }
+            }
+            QFAIL("Presentation close action not found");
+        });
+    };
+    chooseCloseAction(QMessageBox::RejectRole);
+    QVERIFY(!view->close());
+    QVERIFY(view->isVisible());
+    QVERIFY(document->page(0)->annotations().isEmpty());
+    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
+    if (!capture.isEmpty()) {
+        QTest::keyClick(view, Qt::Key_F6);
+        QVERIFY(view->grab().save(capture + QStringLiteral("/native-presentation-ink.png")));
+    }
+    chooseCloseAction(QMessageBox::AcceptRole);
+    QVERIFY(view->close());
+    QCOMPARE(document->page(0)->annotations().size(), 2);
+    QCOMPARE(document->page(0)->annotations()[0]->subType(), Okular::Annotation::AInk);
+    QCOMPARE(document->page(0)->annotations()[1]->style().opacity(), 0.35);
+    QVERIFY(document->page(0)->annotations()[1]->style().width() > document->page(0)->annotations()[0]->style().width());
+    QTemporaryDir output;
+    QVERIFY(output.isValid());
+    const QString saved = output.filePath(QStringLiteral("presentation-ink.pdf"));
+    QVERIFY(document->saveChanges(saved));
+    auto *reopened = new Shell;
+    QVERIFY(reopened->openDocument(QUrl::fromLocalFile(saved), QString()));
+    const auto *savedPage = partDocument(qobject_cast<Okular::Part *>(reopened->m_tabs[0].part))->page(0);
+    QCOMPARE(savedPage->annotations().size(), 2);
+    QVERIFY(qAbs(savedPage->annotations()[1]->style().opacity() - 0.35) < 0.01);
 }
 
 void MainShellTest::testWelcomeScreen()
