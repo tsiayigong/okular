@@ -11,7 +11,6 @@
 #ifndef _ANNOTWINDOW_H_
 #define _ANNOTWINDOW_H_
 
-#include <QColor>
 #include <QFrame>
 
 namespace Okular
@@ -28,6 +27,7 @@ class LatexRenderer;
 class KTextEdit;
 class MovableTitle;
 class QMenu;
+class QPlainTextEdit;
 
 class AnnotWindow : public QFrame
 {
@@ -46,7 +46,7 @@ public:
 private:
     MovableTitle *m_title;
     KTextEdit *textEdit;
-    QColor m_color;
+    QPlainTextEdit *m_quote;
     GuiUtils::LatexRenderer *m_latexRenderer;
     Okular::Annotation *m_annot;
     Okular::Document *m_document;

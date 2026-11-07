@@ -18,6 +18,9 @@ The approved reference is the 84-screen prototype at
   PDF backgrounds are handled by the planned experimental background processor.
 - Bookmark rename popover anchored beside the selected row; F2 and the context
   menu use the same editor.
+- Selection actions for copy, continuous text, highlight, comments and speech.
+  Text comments store their selected range as PDF markup; the note editor derives
+  the quote from that range after reopening, alongside the editable comment.
 - Windows Craft build and standalone ZIP packaging on the fork's GitHub Actions.
 
 ## Remaining implementation and validation
@@ -25,7 +28,7 @@ The approved reference is the 84-screen prototype at
 | Reference screens | Work remaining |
 | --- | --- |
 | 01–06 | Welcome, recent files, open/password/error/loading presentation |
-| 07–17, 66–71, 83–84 | Unified window chrome, native Windows acrylic, sidebar controls, selection toolbar and text comments, reading states and dark surfaces |
+| 07–17, 66–71, 83–84 | Unified window chrome, native Windows acrylic, sidebar controls, reading states and dark surfaces |
 | 18–38 | Restyle and validate the existing annotation, form, signature, attachment, document information, save/export/print/share flows |
 | 39–40, 77–82 | Presentation laser/highlighter, presenter and audience windows, Beamer note layouts, ink retention |
 | 41–55 | Complete the unified settings pages and their shortcuts/toolbars/language integrations |
@@ -37,5 +40,7 @@ The approved reference is the 84-screen prototype at
 
 Local Qt tests cover real PDF page/thumbnail colors, theme application, toolbar
 geometry, preset creation/application/cancellation, JSON schema validation,
-and cropped material rendering. Local captures are under `output/okular-native`.
+and cropped material rendering. PDF selection tests cover comment creation,
+undo/redo, save/reopen, and recovery of the selected quote.
+Local captures are under `output/okular-native`.
 Windows runtime and full reference coverage remain pending.

@@ -23,6 +23,7 @@ class Annotation;
 class EmbeddedFile;
 class Movie;
 class ScreenAnnotation;
+class Page;
 }
 
 namespace GuiUtils
@@ -48,6 +49,7 @@ QIcon iconForAnnotationInfo(const AnnotationInfo &info);
 QString authorForAnnotation(const Okular::Annotation *annotation);
 
 QString contentsHtml(const Okular::Annotation *annotation);
+QString quotedText(const Okular::Annotation *annotation, const Okular::Page *page);
 
 QString prettyToolTip(const Okular::Annotation *annotation);
 

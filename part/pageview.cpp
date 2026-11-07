@@ -23,23 +23,35 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCursor>
+#include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QFrame>
 #include <QGestureEvent>
+#include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLoggingCategory>
 #include <QMenu>
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QNativeGestureEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
+#include <QPointer>
+#include <QPushButton>
+#include <QScreen>
 #include <QScrollBar>
 #include <QScroller>
 #include <QScrollerProperties>
 #include <QSet>
+#include <QShortcut>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 
 #include <KActionCollection>
@@ -173,6 +185,7 @@ public:
     QColor mouseSelectionColor;
     bool mouseTextSelecting = false;
     QSet<int> pagesWithTextSelection;
+    QPointer<QFrame> textSelectionActions;
     bool mouseOnRect = false;
     int mouseMode = 0;
     MouseAnnotation *mouseAnnotation = nullptr;
@@ -1258,6 +1271,9 @@ void PageView::notifySetup(const QList<Okular::Page *> &pageSet, int setupFlags)
     d->items.clear();
     d->visibleItems.clear();
     d->pagesWithTextSelection.clear();
+    if (d->textSelectionActions) {
+        d->textSelectionActions->close();
+    }
     toggleFormWidgets(false);
     if (d->formsWidgetController) {
         d->formsWidgetController->dropRadioButtons();
@@ -3129,6 +3145,9 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                     }
                 }
             }
+            if (leftButton && !d->selectedText().isEmpty()) {
+                showTextSelectionActions(e->globalPosition().toPoint());
+            }
         } else if (!d->mousePressPos.isNull() && rightButton) {
             PageViewItem *item = pickItemOnPoint(eventPos.x(), eventPos.y());
             // if there is text selected in the page
@@ -3151,7 +3170,18 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                         menu = new QMenu(this);
                     }
                     textToClipboard = menu->addAction(QIcon::fromTheme(QStringLiteral("edit-copy")), i18n("Copy Text"));
-                    textWithoutLineBreaksToClipboard = menu->addAction(QIcon::fromTheme(QStringLiteral("edit-copy-without-line-breaks")), i18n("Copy Text (Without line breaks)"));
+                    textWithoutLineBreaksToClipboard =
+                        menu->addAction(QIcon::fromTheme(QStringLiteral("edit-copy-without-line-breaks")), i18n("Copy Text (Without line breaks)"));
+                    auto *highlight = menu->addAction(QIcon::fromTheme(QStringLiteral("draw-highlight")), i18n("Highlight Selection"));
+                    auto *comment = menu->addAction(QIcon::fromTheme(QStringLiteral("document-edit")), i18n("Add Comment…"));
+                    highlight->setEnabled(d->document->isAllowed(Okular::AllowNotes));
+                    comment->setEnabled(d->document->isAllowed(Okular::AllowNotes));
+                    connect(highlight, &QAction::triggered, this, [this] {
+                        annotateTextSelection(false);
+                    });
+                    connect(comment, &QAction::triggered, this, [this] {
+                        annotateTextSelection(true);
+                    });
 
 #if HAVE_SPEECH
                     if (Okular::Settings::useTTS()) {
@@ -3507,6 +3537,9 @@ bool PageView::viewportEvent(QEvent *e)
 
 void PageView::scrollContentsBy(int dx, int dy)
 {
+    if (d->textSelectionActions) {
+        d->textSelectionActions->close();
+    }
     const QRect r = viewport()->rect();
     viewport()->scroll(dx, dy, r);
     // HACK manually repaint the damaged regions, as it seems some updates are missed
@@ -3815,6 +3848,9 @@ PageViewItem *PageView::pickItemOnPoint(int x, int y)
 
 void PageView::textSelectionClear()
 {
+    if (d->textSelectionActions) {
+        d->textSelectionActions->close();
+    }
     // something to clear
     if (!d->pagesWithTextSelection.isEmpty()) {
         for (const int page : std::as_const(d->pagesWithTextSelection)) {
@@ -3822,6 +3858,138 @@ void PageView::textSelectionClear()
         }
         d->pagesWithTextSelection.clear();
     }
+}
+
+void PageView::showTextSelectionActions(const QPoint &globalPosition)
+{
+    if (d->textSelectionActions) {
+        d->textSelectionActions->close();
+    }
+    auto *popup = new QFrame(viewport());
+    popup->setObjectName(QStringLiteral("textSelectionActions"));
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setFrameShape(QFrame::StyledPanel);
+    popup->setAutoFillBackground(true);
+    auto *dismiss = new QShortcut(QKeySequence(Qt::Key_Escape), popup);
+    dismiss->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(dismiss, &QShortcut::activated, popup, &QWidget::close);
+    auto *layout = new QHBoxLayout(popup);
+    layout->setContentsMargins(6, 4, 6, 4);
+    layout->setSpacing(2);
+    auto add = [this, popup, layout](const QString &label, bool enabled, auto action) {
+        auto *button = new QToolButton(popup);
+        button->setText(label);
+        button->setEnabled(enabled);
+        button->setFocusPolicy(Qt::StrongFocus);
+        layout->addWidget(button);
+        connect(button, &QToolButton::clicked, this, [popup, action] {
+            popup->close();
+            action();
+        });
+    };
+    const bool allowCopy = d->document->isAllowed(Okular::AllowCopy);
+    const bool allowNotes = d->document->isAllowed(Okular::AllowNotes);
+    add(i18n("Copy"), allowCopy, [this] {
+        copyTextSelection(TextCopyMode::AsProvided);
+    });
+    add(i18n("Copy as Continuous Text"), allowCopy, [this] {
+        copyTextSelection(TextCopyMode::WithoutLineBreaks);
+    });
+    add(i18n("Highlight"), allowNotes, [this] {
+        annotateTextSelection(false);
+    });
+    add(i18n("Comment"), allowNotes, [this] {
+        annotateTextSelection(true);
+    });
+#if HAVE_SPEECH
+    if (Okular::Settings::useTTS()) {
+        add(i18n("Read Aloud"), true, [this] {
+            d->tts()->say(d->selectedText());
+        });
+    }
+#endif
+    popup->adjustSize();
+    const QRect available = viewport()->rect();
+    const QPoint anchor = viewport()->mapFromGlobal(globalPosition);
+    int y = anchor.y() - popup->height() - 12;
+    if (y < available.top()) {
+        y = anchor.y() + 12;
+    }
+    popup->move(qBound(0, anchor.x() - popup->width() / 2, qMax(0, available.width() - popup->width())),
+                qMin(y, qMax(0, available.height() - popup->height())));
+    d->textSelectionActions = popup;
+    popup->show();
+}
+
+void PageView::annotateTextSelection(bool comment)
+{
+    if (!d->document->isAllowed(Okular::AllowNotes) || d->pagesWithTextSelection.isEmpty()) {
+        return;
+    }
+    QString contents;
+    if (comment) {
+        QDialog dialog(this);
+        dialog.setObjectName(QStringLiteral("textCommentDialog"));
+        dialog.setWindowTitle(i18n("Add Comment"));
+        dialog.resize(400, 280);
+        auto *layout = new QVBoxLayout(&dialog);
+        auto *quote = new QPlainTextEdit(d->selectedText(), &dialog);
+        quote->setObjectName(QStringLiteral("commentQuote"));
+        quote->setReadOnly(true);
+        quote->setMaximumHeight(84);
+        quote->setAccessibleName(i18n("Selected text"));
+        layout->addWidget(quote);
+        auto *editor = new QPlainTextEdit(&dialog);
+        editor->setObjectName(QStringLiteral("commentContents"));
+        editor->setPlaceholderText(i18n("Write a comment…"));
+        layout->addWidget(editor);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+        buttons->button(QDialogButtonBox::Save)->setEnabled(false);
+        layout->addWidget(buttons);
+        connect(editor, &QPlainTextEdit::textChanged, &dialog, [editor, buttons] {
+            buttons->button(QDialogButtonBox::Save)->setEnabled(!editor->toPlainText().trimmed().isEmpty());
+        });
+        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        editor->setFocus();
+        if (dialog.exec() != QDialog::Accepted) {
+            return;
+        }
+        contents = editor->toPlainText().trimmed();
+    }
+    QList<int> pages = d->pagesWithTextSelection.values();
+    std::sort(pages.begin(), pages.end());
+    for (int pageNumber : std::as_const(pages)) {
+        const auto *page = d->document->page(pageNumber);
+        const auto *selection = page->textSelection();
+        if (!selection || selection->isEmpty()) {
+            continue;
+        }
+        auto *annotation = new Okular::HighlightAnnotation;
+        annotation->setHighlightType(comment ? Okular::HighlightAnnotation::Underline : Okular::HighlightAnnotation::Highlight);
+        Okular::NormalizedRect bounds = selection->first();
+        for (const auto &rect : *selection) {
+            bounds |= rect;
+            Okular::HighlightAnnotation::Quad quad;
+            quad.setCapStart(false);
+            quad.setCapEnd(false);
+            quad.setFeather(1.0);
+            quad.setPoint(Okular::NormalizedPoint(rect.left, rect.bottom), 0);
+            quad.setPoint(Okular::NormalizedPoint(rect.right, rect.bottom), 1);
+            quad.setPoint(Okular::NormalizedPoint(rect.right, rect.top), 2);
+            quad.setPoint(Okular::NormalizedPoint(rect.left, rect.top), 3);
+            annotation->highlightQuads().append(quad);
+        }
+        annotation->setBoundingRectangle(bounds);
+        const QString quote = page->text(selection, Okular::TextPage::CentralPixelTextAreaInclusionBehaviour).trimmed();
+        annotation->setContents(comment ? contents : quote);
+        annotation->style().setColor(comment ? Okular::Settings::accentColor() : QColor(QStringLiteral("#FFE66A")));
+        annotation->setAuthor(Okular::Settings::identityAuthor());
+        annotation->setCreationDate(QDateTime::currentDateTime());
+        annotation->setModificationDate(QDateTime::currentDateTime());
+        d->document->addPageAnnotation(pageNumber, annotation);
+    }
+    textSelectionClear();
 }
 
 void PageView::selectionStart(const QPoint pos, const QColor &color, bool /*aboveAll*/)
@@ -3839,7 +4007,8 @@ void PageView::selectionStart(const QPoint pos, const QColor &color, bool /*abov
 
 void PageView::scrollPosIntoView(const QPoint pos)
 {
-    // this number slows the speed of the page by its value, chosen not to be too fast or too slow, the actual speed is determined from the mouse position, not critical
+    // this number slows the speed of the page by its value, chosen not to be too fast or too slow, the actual speed is determined from the mouse position, not
+    // critical
     const int damping = 6;
 
     if (pos.x() < horizontalScrollBar()->value()) {
@@ -4226,7 +4395,11 @@ void PageView::updateZoomText()
             selIdx++;
         }
         const QString localizedValue = makePrettyZoomString(value);
-        const QString i18nZoomName = i18nc("Zoom percentage value %1 will be replaced by the actual zoom factor value, so make sure you include it in your translation in order to not to break anything", "%1%", localizedValue);
+        const QString i18nZoomName = i18nc(
+            "Zoom percentage value %1 will be replaced by the actual zoom factor value, so make sure you include it in your translation in order to not to "
+            "break anything",
+            "%1%",
+            localizedValue);
         if (makePrettyZoomString(parseZoomString(i18nZoomName)) == localizedValue) {
             translated << i18nZoomName;
         } else {
@@ -5367,7 +5540,8 @@ void PageView::showNoSigningCertificatesDialog(bool nonDateValidCerts)
     } else {
         if (kleo.kleopatraIntegrationActive()) {
             auto result = KMessageBox::questionTwoActions(this,
-                                                          i18n("There are no available signing certificates.<br/>Launch Certificate Manager to import or manage certificates<br/>For more information, please see the section about <a "
+                                                          i18n("There are no available signing certificates.<br/>Launch Certificate Manager to import or "
+                                                               "manage certificates<br/>For more information, please see the section about <a "
                                                                "href=\"%1\">Adding Digital Signatures</a> in the manual.",
                                                                QStringLiteral("help:/okular/signatures.html#adding_digital_signatures")),
                                                           i18n("No certificates found"),
@@ -5380,7 +5554,8 @@ void PageView::showNoSigningCertificatesDialog(bool nonDateValidCerts)
             }
         } else {
             KMessageBox::information(this,
-                                     i18n("There are no available signing certificates.<br/>For more information, please see the section about <a href=\"%1\">Adding Digital Signatures</a> in the manual.",
+                                     i18n("There are no available signing certificates.<br/>For more information, please see the section about <a "
+                                          "href=\"%1\">Adding Digital Signatures</a> in the manual.",
                                           QStringLiteral("help:/okular/signatures.html#adding_digital_signatures")),
                                      i18n("No certificates found"),
                                      QString(),

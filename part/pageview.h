@@ -230,6 +230,8 @@ private:
     // update view mode (single, facing...)
     void updateViewMode(const int nr);
     void textSelectionClear();
+    void showTextSelectionActions(const QPoint &globalPosition);
+    void annotateTextSelection(bool comment);
     // updates cursor
     void updateCursor(const QPoint p);
 

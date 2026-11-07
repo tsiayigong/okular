@@ -6157,3 +6157,24 @@ msgstr "书签名称："
 
 msgid "Done"
 msgstr "完成"
+
+msgid "Copy as Continuous Text"
+msgstr "复制为连续文本"
+
+msgid "Read Aloud"
+msgstr "朗读"
+
+msgid "Add Comment"
+msgstr "添加注释"
+
+msgid "Add Comment…"
+msgstr "添加注释…"
+
+msgid "Highlight Selection"
+msgstr "高亮选中文本"
+
+msgid "Selected text"
+msgstr "选中的文字"
+
+msgid "Write a comment…"
+msgstr "添加备注…"

@@ -19,11 +19,34 @@
 #include "core/action.h"
 #include "core/annotations.h"
 #include "core/document.h"
+#include "core/page.h"
 
 #include <memory>
 
 namespace GuiUtils
 {
+QString quotedText(const Okular::Annotation *annotation, const Okular::Page *page)
+{
+    if (annotation->subType() != Okular::Annotation::AHighlight) {
+        return {};
+    }
+    const auto *markup = static_cast<const Okular::HighlightAnnotation *>(annotation);
+    Okular::RegularAreaRect area;
+    for (const auto &quad : markup->highlightQuads()) {
+        const auto start = quad.transformedPoint(0);
+        Okular::NormalizedRect rect(start.x, start.y, start.x, start.y);
+        for (int i = 1; i < 4; ++i) {
+            const auto point = quad.transformedPoint(i);
+            rect.left = qMin(rect.left, point.x);
+            rect.right = qMax(rect.right, point.x);
+            rect.top = qMin(rect.top, point.y);
+            rect.bottom = qMax(rect.bottom, point.y);
+        }
+        area.append(rect);
+    }
+    return page->text(&area, Okular::TextPage::CentralPixelTextAreaInclusionBehaviour).trimmed();
+}
+
 // TODO: iconName should match AnnotationActionHandler in part/annotationactionhandler.cpp
 AnnotationInfo getAnnotationInfo(const Okular::Annotation *ann)
 {

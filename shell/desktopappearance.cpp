@@ -93,6 +93,9 @@ void DesktopAppearance::apply()
         QComboBox { padding-right: 22px; }
         QComboBox::drop-down { border: 0; width: 20px; }
         QDialog { background: @surface; }
+        QFrame#textSelectionActions { background: @surface; border: 1px solid @line; border-radius: 6px; }
+        QFrame#AnnotWindow { background: @surface; border: 1px solid @line; border-radius: 6px; }
+        QFrame#AnnotWindow QTextEdit, QFrame#AnnotWindow QPlainTextEdit { background: @field; border: 1px solid @line; border-radius: 4px; padding: 5px; }
         QStatusBar { background: @chrome; color: @muted; border-top: 1px solid @line; }
         QStatusBar::item { border: 0; }
         QToolTip { background: @surface; color: @text; border: 1px solid @line; border-radius: 4px; padding: 5px 8px; }

@@ -28,15 +28,18 @@
 #include <KActionCollection>
 #include <KActionMenu>
 #include <KConfigDialog>
+#include <KLocalizedString>
 #include <KParts/OpenUrlArguments>
 
 #include <QAbstractItemModelTester>
 #include <QApplication>
 #include <QClipboard>
 #include <QDesktopServices>
+#include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTabletEvent>
@@ -45,6 +48,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QTreeView>
 #include <QUrl>
 
@@ -70,6 +74,7 @@ private Q_SLOTS:
     void testForwardPDF_data();
     void testGeneratorPreferences();
     void testSelectText();
+    void testSelectionCommentPersistence();
     void testSelectTextMultiline();
     void testCopyTextSelectionModes();
     void testCopyTextWithoutLineBreaksMultiline();
@@ -304,6 +309,66 @@ void PartTest::testSelectText()
     QVERIFY(QMetaObject::invokeMethod(part.m_pageView, "copyTextSelection", Q_ARG(PageView::TextCopyMode, PageView::TextCopyMode::AsProvided)));
 
     QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("Hola que tal"));
+}
+
+void PartTest::testSelectionCommentPersistence()
+{
+    Okular::Part part(nullptr, {});
+    QVERIFY(openDocument(&part, QStringLiteral(KDESRCDIR "data/file2.pdf")));
+    part.widget()->show();
+    QVERIFY(QTest::qWaitForWindowExposed(part.widget()));
+    QTRY_VERIFY(part.m_document->page(0)->hasPixmap(part.m_pageView));
+    QVERIFY(QMetaObject::invokeMethod(part.m_pageView, "slotSetMouseTextSelect"));
+    const int width = part.m_pageView->horizontalScrollBar()->maximum() + part.m_pageView->viewport()->width();
+    const int height = part.m_pageView->verticalScrollBar()->maximum() + part.m_pageView->viewport()->height();
+    simulateMouseSelection(width * 0.12, height * 0.052, width * 0.7, height * 0.052, part.m_pageView->viewport());
+    auto *toolbar = part.m_pageView->findChild<QFrame *>(QStringLiteral("textSelectionActions"));
+    QVERIFY(toolbar);
+    QVERIFY(toolbar->isVisible());
+    QToolButton *comment = nullptr;
+    for (auto *button : toolbar->findChildren<QToolButton *>()) {
+        if (button->text() == i18n("Comment")) {
+            comment = button;
+        }
+    }
+    QVERIFY(comment);
+    QString quotedText;
+    QTimer::singleShot(0, [&] {
+        auto *dialog = part.m_pageView->findChild<QDialog *>(QStringLiteral("textCommentDialog"));
+        if (!dialog) {
+            return;
+        }
+        quotedText = dialog->findChild<QPlainTextEdit *>(QStringLiteral("commentQuote"))->toPlainText();
+        dialog->findChild<QPlainTextEdit *>(QStringLiteral("commentContents"))->setPlainText(QStringLiteral("Check this argument."));
+        dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Save)->click();
+    });
+    comment->click();
+    QCOMPARE(quotedText, QStringLiteral("Hola que tal"));
+    QCOMPARE(part.m_document->page(0)->annotations().size(), 1);
+    auto *annotation = part.m_document->page(0)->annotations().first();
+    QCOMPARE(annotation->contents(), QStringLiteral("Check this argument."));
+    QVERIFY(QMetaObject::invokeMethod(part.m_pageView, "openAnnotationWindow", Q_ARG(Okular::Annotation *, annotation), Q_ARG(int, 0)));
+    auto *quote = part.m_pageView->findChild<QPlainTextEdit *>(QStringLiteral("annotationQuote"));
+    QVERIFY(quote);
+    QCOMPARE(quote->toPlainText(), quotedText);
+    QVERIFY(part.m_document->canUndo());
+    part.m_document->undo();
+    QCOMPARE(part.m_document->page(0)->annotations().size(), 0);
+    part.m_document->redo();
+    QCOMPARE(part.m_document->page(0)->annotations().size(), 1);
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString output = directory.filePath(QStringLiteral("comment.pdf"));
+    QVERIFY(part.saveAs(QUrl::fromLocalFile(output), Part::NoSaveAsFlags));
+    QVERIFY(part.closeUrl());
+    QVERIFY(openDocument(&part, output));
+    QCOMPARE(part.m_document->page(0)->annotations().size(), 1);
+    annotation = part.m_document->page(0)->annotations().first();
+    QCOMPARE(annotation->contents(), QStringLiteral("Check this argument."));
+    QVERIFY(QMetaObject::invokeMethod(part.m_pageView, "openAnnotationWindow", Q_ARG(Okular::Annotation *, annotation), Q_ARG(int, 0)));
+    quote = part.m_pageView->findChild<QPlainTextEdit *>(QStringLiteral("annotationQuote"));
+    QVERIFY(quote);
+    QCOMPARE(quote->toPlainText(), quotedText);
 }
 
 void PartTest::testSelectTextMultiline()

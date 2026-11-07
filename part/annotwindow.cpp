@@ -27,6 +27,7 @@
 #include <QLayout>
 #include <QList>
 #include <QMenu>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -38,6 +39,7 @@
 // local includes
 #include "core/annotations.h"
 #include "core/document.h"
+#include "gui/guiutils.h"
 #include "latexrenderer.h"
 #include <KMessageBox>
 #include <core/utils.h>
@@ -122,7 +124,7 @@ public:
         // Third zone: authorAndDateLabel (author name with date)
         authorAndDateLabel = new QLabel(this);
         authorAndDateLabel->setContentsMargins(0, 10, 0, 0);
-        authorAndDateLabel->setStyleSheet(QStringLiteral("font-weight: bold; color: black"));
+        authorAndDateLabel->setStyleSheet(QStringLiteral("font-weight: bold"));
         authorAndDateLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
         authorAndDateLabel->setCursor(Qt::SizeAllCursor);
 
@@ -354,10 +356,16 @@ AnnotWindow::AnnotWindow(QWidget *parent, Okular::Annotation *annot, Okular::Doc
     }
 
     QVBoxLayout *mainlay = new QVBoxLayout(this);
-    mainlay->setContentsMargins(2, 2, 2, 2);
-    mainlay->setSpacing(0);
+    mainlay->setContentsMargins(12, 10, 12, 8);
+    mainlay->setSpacing(8);
     m_title = new MovableTitle(this, countNumberPreviousAnnotation);
     mainlay->addWidget(m_title);
+    m_quote = new QPlainTextEdit(this);
+    m_quote->setObjectName(QStringLiteral("annotationQuote"));
+    m_quote->setReadOnly(true);
+    m_quote->setMaximumHeight(84);
+    m_quote->setAccessibleName(i18n("Selected text"));
+    mainlay->addWidget(m_quote);
     mainlay->addWidget(textEdit);
     QHBoxLayout *lowerlay = new QHBoxLayout();
     mainlay->addLayout(lowerlay);
@@ -370,7 +378,7 @@ AnnotWindow::AnnotWindow(QWidget *parent, Okular::Annotation *annot, Okular::Doc
     // in this case the signal it's connected to inside MovableTitle constructor a few lines above
     Q_EMIT containsLatex(GuiUtils::LatexRenderer::mightContainLatex(m_annot->contents())); // clazy:exclude=incorrect-emit
 
-    m_title->setTitle(m_annot->window().summary());
+    m_title->setTitle(m_annot->window().summary().isEmpty() ? GuiUtils::captionForAnnotation(m_annot) : m_annot->window().summary());
     m_title->connectOptionButton(this, SLOT(slotOptionBtn()));
 
     setGeometry(10, 10, 300, 300);
@@ -411,23 +419,13 @@ void AnnotWindow::updateAnnotation(Okular::Annotation *a)
 
 void AnnotWindow::reloadInfo()
 {
-    QColor newcolor;
-    if (m_annot->subType() == Okular::Annotation::AText) {
-        Okular::TextAnnotation *textAnn = static_cast<Okular::TextAnnotation *>(m_annot);
-        if (textAnn->textType() == Okular::TextAnnotation::InPlace && textAnn->inplaceIntent() == Okular::TextAnnotation::TypeWriter) {
-            newcolor = QColor(0xfd, 0xfd, 0x96);
-        }
+    QString quote;
+    if (m_annot->subType() == Okular::Annotation::AHighlight) {
+        m_document->requestTextPage(m_page);
+        quote = GuiUtils::quotedText(m_annot, m_document->page(m_page));
     }
-    if (!newcolor.isValid()) {
-        newcolor = m_annot->style().color().isValid() ? QColor(m_annot->style().color().red(), m_annot->style().color().green(), m_annot->style().color().blue(), 255) : Qt::yellow;
-    }
-    if (newcolor != m_color) {
-        m_color = newcolor;
-        setPalette(QPalette(m_color));
-        QPalette pl = textEdit->palette();
-        pl.setColor(QPalette::Base, m_color);
-        textEdit->setPalette(pl);
-    }
+    m_quote->setPlainText(quote);
+    m_quote->setVisible(!quote.isEmpty());
 
     Okular::Annotation *parent = m_annot;
     Okular::Annotation *child = nullptr;
