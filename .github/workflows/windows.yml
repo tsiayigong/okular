@@ -1,0 +1,77 @@
+name: Windows desktop
+
+on:
+  push:
+    branches: [custom/26.08-windows]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository == 'tsiayigong/okular'
+    runs-on: windows-2022
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CRAFT_ROOT: C:\CraftRoot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Bootstrap Craft
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          Invoke-WebRequest https://raw.githubusercontent.com/KDE/craft/master/setup/CraftBootstrap.py -OutFile "$env:RUNNER_TEMP\CraftBootstrap.py"
+          python "$env:RUNNER_TEMP\CraftBootstrap.py" --prefix $env:CRAFT_ROOT --use-defaults
+      - name: Install Windows dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
+          craft --ci-mode --options kde/applications/okular.version=26.08.3 --install-deps kde/applications/okular
+      - name: Build this checkout
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
+          craft --ci-mode --no-cache --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options kde/applications/okular.buildTests=True kde/applications/okular
+      - name: Smoke test the Windows executable
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
+          & "$env:CRAFT_ROOT\bin\okular.exe" --version
+      - name: Package standalone desktop
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
+          craft --ci-mode --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options '[Packager]PackageType=PortablePackager' --options '[Packager]7ZipArchiveType=zip' --options '[Packager]PackageDebugSymbols=False' --package kde/applications/okular
+      - name: Upload standalone package
+        uses: actions/upload-artifact@v4
+        with:
+          name: okular-windows-${{ github.sha }}
+          path: C:\CraftRoot\tmp\*.zip
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-logs-${{ github.sha }}
+          path: |
+            C:\CraftRoot\logs
+            C:\CraftRoot\build\kde\applications\okular\**\CMakeFiles\CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 14
