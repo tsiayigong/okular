@@ -53,12 +53,21 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=26.08.3 --install-deps kde/applications/okular
+          try {
+            python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=release/26.08 --install-deps kde/applications/okular *> "$env:RUNNER_TEMP\craft-dependencies.log"
+          } finally {
+            Get-Content "$env:RUNNER_TEMP\craft-dependencies.log" -Tail 100
+          }
       - name: Build this checkout
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --no-cache --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options kde/applications/okular.buildTests=True kde/applications/okular
+          # The Craft recipe tracks the release branch; srcDir selects this checkout.
+          try {
+            python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --no-cache --options kde/applications/okular.version=release/26.08 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options kde/applications/okular.buildTests=True kde/applications/okular *> "$env:RUNNER_TEMP\craft-build.log"
+          } finally {
+            Get-Content "$env:RUNNER_TEMP\craft-build.log" -Tail 100
+          }
       - name: Smoke test the Windows executable
         run: |
           $ErrorActionPreference = 'Stop'
@@ -68,7 +77,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options '[Packager]PackageType=PortablePackager' --options '[Packager]7ZipArchiveType=zip' --options '[Packager]PackageDebugSymbols=False' --package kde/applications/okular
+          try {
+            python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=release/26.08 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options '[Packager]PackageType=PortablePackager' --options '[Packager]7ZipArchiveType=zip' --options '[Packager]PackageDebugSymbols=False' --package kde/applications/okular *> "$env:RUNNER_TEMP\craft-package.log"
+          } finally {
+            Get-Content "$env:RUNNER_TEMP\craft-package.log" -Tail 100
+          }
       - name: Upload standalone package
         uses: actions/upload-artifact@v4
         with:
@@ -85,7 +98,7 @@ jobs:
           foreach ($source in @(
             "$env:CRAFT_ROOT\logs",
             "$env:CRAFT_ROOT\etc\CraftSettings.ini",
-            "$env:RUNNER_TEMP\craft-bootstrap.log"
+            "$env:RUNNER_TEMP\craft-*.log"
           )) {
             if (Test-Path $source) {
               Copy-Item $source $destination -Recurse -Force
@@ -110,10 +123,12 @@ jobs:
       - name: Show failure summary
         if: failure()
         run: |
-          $log = "$env:RUNNER_TEMP\craft-bootstrap.log"
-          if (Test-Path $log) {
-            Write-Output 'Last bootstrap messages:'
-            Get-Content $log -Tail 100
+          foreach ($stage in 'bootstrap', 'dependencies', 'build', 'package') {
+            $log = "$env:RUNNER_TEMP\craft-$stage.log"
+            if (Test-Path $log) {
+              Write-Output "Last $stage messages:"
+              Get-Content $log -Tail 100
+            }
           }
           if (Test-Path "$env:CRAFT_ROOT\logs") {
             Get-ChildItem "$env:CRAFT_ROOT\logs" -Recurse -Filter make.log |
