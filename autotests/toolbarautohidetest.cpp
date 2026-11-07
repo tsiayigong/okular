@@ -28,7 +28,9 @@ void ToolbarAutoHideTest::overlayAndKeyboard()
     auto *toolbar = window.addToolBar(QStringLiteral("Reading"));
     auto *pageNumber = new QLineEdit;
     toolbar->addWidget(pageNumber);
-    ToolbarAutoHide controller(&window);
+    auto *documentTabs = window.addToolBar(QStringLiteral("Documents"));
+    documentTabs->addAction(QStringLiteral("Document.pdf"));
+    ToolbarAutoHide controller(&window, documentTabs);
     controller.attach(toolbar, document);
     window.resize(800, 600);
     window.show();
@@ -60,6 +62,7 @@ void ToolbarAutoHideTest::overlayAndKeyboard()
     controller.setEnabled(false);
     QTRY_VERIFY(toolbar->isVisible());
     QCOMPARE(window.toolBarArea(toolbar), Qt::TopToolBarArea);
+    QVERIFY(toolbar->geometry().bottom() < documentTabs->geometry().top());
     QVERIFY(hotZone->isHidden());
 }
 
@@ -70,7 +73,9 @@ void ToolbarAutoHideTest::keepPopupOpen()
     window.setCentralWidget(document);
     auto *toolbar = window.addToolBar(QStringLiteral("Reading"));
     toolbar->addAction(QStringLiteral("Layout"));
-    ToolbarAutoHide controller(&window);
+    auto *documentTabs = window.addToolBar(QStringLiteral("Documents"));
+    documentTabs->addAction(QStringLiteral("Document.pdf"));
+    ToolbarAutoHide controller(&window, documentTabs);
     controller.attach(toolbar, document);
     window.resize(800, 600);
     window.show();
