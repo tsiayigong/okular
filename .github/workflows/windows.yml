@@ -53,26 +53,22 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
-          craft --ci-mode --options kde/applications/okular.version=26.08.3 --install-deps kde/applications/okular
+          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=26.08.3 --install-deps kde/applications/okular
       - name: Build this checkout
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
-          craft --ci-mode --no-cache --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options kde/applications/okular.buildTests=True kde/applications/okular
+          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --no-cache --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options kde/applications/okular.buildTests=True kde/applications/okular
       - name: Smoke test the Windows executable
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
-          & "$env:CRAFT_ROOT\bin\okular.exe" --version
+          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --run "$env:CRAFT_ROOT\bin\okular.exe" --version
       - name: Package standalone desktop
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          & "$env:CRAFT_ROOT\craft\craftenv.ps1"
-          craft --ci-mode --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options '[Packager]PackageType=PortablePackager' --options '[Packager]7ZipArchiveType=zip' --options '[Packager]PackageDebugSymbols=False' --package kde/applications/okular
+          python "$env:CRAFT_ROOT\craft\bin\craft.py" --ci-mode --options kde/applications/okular.version=26.08.3 --options "kde/applications/okular.srcDir=$env:GITHUB_WORKSPACE" --options kde/applications/okular.packageAppx=False --options '[Packager]PackageType=PortablePackager' --options '[Packager]7ZipArchiveType=zip' --options '[Packager]PackageDebugSymbols=False' --package kde/applications/okular
       - name: Upload standalone package
         uses: actions/upload-artifact@v4
         with:
