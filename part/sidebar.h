@@ -10,7 +10,6 @@
 #include "okularpart_export.h"
 #include <qwidget.h>
 
-class QIcon;
 class QListWidgetItem;
 
 class OKULARPART_EXPORT Sidebar : public QWidget
@@ -20,7 +19,7 @@ public:
     explicit Sidebar(QWidget *parent = nullptr);
     ~Sidebar() override;
 
-    int addItem(QWidget *widget, const QIcon &icon, const QString &text);
+    int addItem(QWidget *widget, const QString &text, int index = -1);
 
     void setMainWidget(QWidget *widget);
     void setBottomWidget(QWidget *widget);

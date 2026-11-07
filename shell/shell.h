@@ -32,7 +32,8 @@
 class Sidebar;
 class KRecentFilesAction;
 class KToggleAction;
-class QTabWidget;
+class QTabBar;
+class QToolBar;
 class QMenu;
 class KPluginFactory;
 class ToolbarAutoHide;
@@ -181,7 +182,9 @@ private:
     KToggleAction *m_showMenuBarAction;
     bool m_menuBarWasShown, m_toolBarWasShown;
     bool m_unique;
-    QTabWidget *m_tabWidget;
+    QTabBar *m_documentTabs = nullptr;
+    QToolBar *m_documentTabBar = nullptr;
+    QStackedWidget *m_documentStack = nullptr;
     KToggleAction *m_openInTab;
     WelcomeScreen *m_welcomeScreen;
     QStackedWidget *m_centralStackedWidget;

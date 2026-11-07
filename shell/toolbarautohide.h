@@ -18,7 +18,7 @@ class ToolbarAutoHide : public QObject
 {
     Q_OBJECT
 public:
-    explicit ToolbarAutoHide(QMainWindow *window);
+    ToolbarAutoHide(QMainWindow *window, QToolBar *documentTabBar);
     void attach(QToolBar *toolbar, QWidget *document);
     void setEnabled(bool enabled);
     bool isEnabled() const;
@@ -33,12 +33,12 @@ private:
     bool isInteracting() const;
 
     QMainWindow *m_window;
+    QToolBar *m_documentTabBar;
     QPointer<QToolBar> m_toolbar;
     QPointer<QWidget> m_document;
     QWidget *m_hotZone;
     QWidget *m_handle;
     QTimer m_hideTimer;
-    Qt::ToolBarArea m_area = Qt::TopToolBarArea;
     bool m_enabled = false;
 };
 

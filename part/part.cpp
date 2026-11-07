@@ -401,17 +401,17 @@ Part::Part(QObject *parent, const QVariantList &args)
     thumbsBox->layout()->addWidget(m_thumbnailList);
     //	ThumbnailController * m_tc = new ThumbnailController( thumbsBox, m_thumbnailList );
     connect(m_thumbnailList.data(), &ThumbnailList::rightClick, this, &Part::slotShowMenu);
-    m_sidebar->addItem(thumbsBox, QIcon::fromTheme(QStringLiteral("view-preview")), i18n("Thumbnails"));
+    m_sidebar->addItem(thumbsBox, i18n("Thumbnails"));
 
     m_sidebar->setCurrentItem(thumbsBox);
 
     // [left toolbox: Reviews] | []
     m_reviewsWidget = new Reviews(nullptr, m_document);
-    m_sidebar->addItem(m_reviewsWidget, QIcon::fromTheme(QStringLiteral("draw-freehand")), i18n("Annotations"));
+    m_sidebar->addItem(m_reviewsWidget, i18n("Annotations"));
 
     // [left toolbox: Bookmarks] | []
     m_bookmarkList = new BookmarkList(m_document, nullptr);
-    m_sidebar->addItem(m_bookmarkList, QIcon::fromTheme(QStringLiteral("bookmarks")), i18n("Bookmarks"));
+    m_sidebar->addItem(m_bookmarkList, i18n("Bookmarks"), 1);
 
     // [left toolbox optional item: Signature Panel] | []
     m_signaturePanel = new SignaturePanel(m_document, nullptr);
@@ -2317,7 +2317,7 @@ void Part::enableTOC(bool enable)
         return;
     }
 
-    m_sidebar->addItem(m_toc, QIcon::fromTheme(QApplication::isLeftToRight() ? QStringLiteral("format-justify-left") : QStringLiteral("format-justify-right")), i18n("Contents"));
+    m_sidebar->addItem(m_toc, i18n("Contents"), 1);
     m_tocEnabled = true;
 
     // If present, show the TOC when a document is opened
@@ -2337,7 +2337,7 @@ void Part::enableLayers(bool enable)
         return;
     }
 
-    m_sidebar->addItem(m_layers, QIcon::fromTheme(QStringLiteral("format-list-unordered")), i18n("Layers"));
+    m_sidebar->addItem(m_layers, i18n("Layers"));
 }
 
 void Part::enableSidebarSignaturesItem(bool enable)
@@ -2346,7 +2346,7 @@ void Part::enableSidebarSignaturesItem(bool enable)
         return;
     }
 
-    m_sidebar->addItem(m_signaturePanel, QIcon::fromTheme(QStringLiteral("application-pkcs7-signature")), i18n("Signatures"));
+    m_sidebar->addItem(m_signaturePanel, i18n("Signatures"));
 }
 
 void Part::slotShowFindBar()

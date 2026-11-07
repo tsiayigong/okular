@@ -69,8 +69,11 @@ Sidebar::Sidebar(QWidget *parent)
     d->vlay->setContentsMargins(0, 0, 0, 0);
 
     d->viewChooserTabs = new QTabWidget(d->sideContainer);
+    d->viewChooserTabs->setObjectName(QStringLiteral("sidebarPages"));
     d->viewChooserTabs->setDocumentMode(true);
-    d->viewChooserTabs->tabBar()->setExpanding(true);
+    d->viewChooserTabs->tabBar()->setObjectName(QStringLiteral("sidebarTabs"));
+    d->viewChooserTabs->tabBar()->setExpanding(false);
+    d->viewChooserTabs->tabBar()->setUsesScrollButtons(true);
     d->vlay->addWidget(d->viewChooserTabs);
 
     connect(d->splitter, &QSplitter::splitterMoved, this, &Sidebar::splitterMoved);
@@ -81,18 +84,14 @@ Sidebar::~Sidebar()
     delete d;
 }
 
-int Sidebar::addItem(QWidget *widget, const QIcon &icon, const QString &text)
+int Sidebar::addItem(QWidget *widget, const QString &text, int index)
 {
     if (!widget) {
         return -1;
     }
 
     widget->setParent(d->viewChooserTabs);
-    d->viewChooserTabs->addTab(widget, icon, text);
-    const int thisTabIndex = d->viewChooserTabs->count() - 1;
-    // Hide all text and use large icons
-    d->viewChooserTabs->setTabText(thisTabIndex, QString());
-    d->viewChooserTabs->setIconSize(QSize(22, 22));
+    const int thisTabIndex = d->viewChooserTabs->insertTab(index, widget, text);
     d->viewChooserTabs->setTabToolTip(thisTabIndex, text);
     return thisTabIndex;
 }

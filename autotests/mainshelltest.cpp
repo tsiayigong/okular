@@ -35,7 +35,6 @@
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTabBar>
-#include <QTabWidget>
 #include <QTemporaryFile>
 #include <QTimer>
 #include <qwidget.h>
@@ -119,9 +118,9 @@ class MainShellTest : public QObject, public Okular::PartTest
     Q_OBJECT
 
 public:
-    static QTabWidget *tabWidget(Shell *s)
+    static QTabBar *tabWidget(Shell *s)
     {
-        return s->m_tabWidget;
+        return s->m_documentTabs;
     }
 
 private Q_SLOTS:
@@ -276,11 +275,17 @@ void MainShellTest::testDesktopAppearance()
     QVERIFY(controller->isEnabled());
     QCoreApplication::processEvents();
     const QRect readingGeometry(view->mapTo(shell, QPoint(0, 0)), view->size());
+    QCOMPARE(shell->m_documentTabBar->geometry().left(), shell->contentsRect().left());
+    QVERIFY(shell->m_documentTabBar->geometry().bottom() < readingGeometry.top());
+    QVERIFY(shell->m_documentTabBar->rect().contains(shell->m_documentTabs->geometry()));
+    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
+    if (!capture.isEmpty()) {
+        QVERIFY(shell->grab().save(capture + QStringLiteral("/native-reader-hidden.png")));
+    }
     controller->reveal();
     QVERIFY(shell->toolBar()->isVisible());
     QCOMPARE(QRect(view->mapTo(shell, QPoint(0, 0)), view->size()), readingGeometry);
 
-    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
     if (!capture.isEmpty()) {
         QVERIFY(shell->grab().save(capture + QStringLiteral("/native-reader.png")));
     }
@@ -328,7 +333,7 @@ void MainShellTest::testDesktopAppearance()
     QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/tocreload.pdf")), QString()));
     QTRY_VERIFY(controller->isEnabled());
     QCOMPARE(menus().first(), applicationMenu->menuAction());
-    auto *activePart = shell->m_tabs[shell->m_tabWidget->currentIndex()].part;
+    auto *activePart = shell->m_tabs[shell->m_documentTabs->currentIndex()].part;
     QVERIFY(applicationMenu->actions().contains(activePart->actionCollection()->action(QStringLiteral("options_configure"))));
     QCOMPARE(shell->toolBarArea(shell->toolBar()), Qt::NoToolBarArea);
     QVERIFY(!shell->toolBar()->isVisible());
@@ -372,9 +377,11 @@ void MainShellTest::testWelcomeScreen()
     recents->setCurrentIndex(recents->model()->index(0, 0));
     QTest::keyClick(recents, Qt::Key_Return);
     QTRY_VERIFY(!welcome->isVisible());
+    QVERIFY(shell->m_documentTabBar->isVisible());
     QCOMPARE(shell->m_tabs[0].part->url(), second);
     shell->closeTab(0);
     QTRY_VERIFY(welcome->isVisible());
+    QVERIFY(!shell->m_documentTabBar->isVisible());
     clear->click();
     QTRY_VERIFY(empty->isVisible());
     QCOMPARE(recents->model()->rowCount(), 0);
@@ -935,10 +942,10 @@ void MainShellTest::testOpenInvalidFiles()
     QList<QUrl> recentFiles = shell->m_recent->urls();
 
     QVERIFY(shell->m_tabs.size() == 2);
-    QVERIFY(shell->m_tabWidget->tabBar()->isVisible());
+    QTRY_VERIFY(shell->m_documentTabs->isVisible());
 
-    QVERIFY(!shell->m_tabWidget->tabIcon(0).isNull());
-    QVERIFY(!shell->m_tabWidget->tabIcon(1).isNull());
+    QVERIFY(!shell->m_documentTabs->tabIcon(0).isNull());
+    QVERIFY(!shell->m_documentTabs->tabIcon(1).isNull());
 
     QVERIFY(recentFiles.size() == 2);
 }
@@ -964,7 +971,7 @@ void MainShellTest::testOpenTheSameFileSeveralTimes()
 
     QVERIFY(shell->m_tabs.size() == 2);
 
-    QVERIFY(shell->m_tabWidget->currentIndex() == 1);
+    QVERIFY(shell->m_documentTabs->currentIndex() == 1);
 
     Okular::Settings::self()->setSwitchToTabIfOpen(false);
 
@@ -973,7 +980,7 @@ void MainShellTest::testOpenTheSameFileSeveralTimes()
     QVERIFY(shell->m_tabs.size() == 3);
 
     shell->openUrl(file3);
-    QVERIFY(shell->m_tabWidget->currentIndex() == 3);
+    QVERIFY(shell->m_documentTabs->currentIndex() == 3);
 
     QVERIFY(shell->m_tabs.size() == 4);
 
@@ -992,15 +999,15 @@ void MainShellTest::testMiddleButtonCloseUndo()
     Shell *s = findShell();
     QVERIFY(s);
 
-    QCOMPARE(s->m_tabWidget->count(), paths.size());
+    QCOMPARE(s->m_documentTabs->count(), paths.size());
     // Close a tab using middle key
-    QWidget *firstTab = s->m_tabWidget->tabBar()->tabButton(0, QTabBar::RightSide);
+    QWidget *firstTab = s->m_documentTabs->tabButton(0, QTabBar::RightSide);
     QVERIFY(firstTab);
     QTest::mouseClick(firstTab, Qt::MiddleButton);
-    QCOMPARE(s->m_tabWidget->count(), paths.size() - 1);
+    QCOMPARE(s->m_documentTabs->count(), paths.size() - 1);
     // Undo tab close
     s->undoCloseTab();
-    QCOMPARE(s->m_tabWidget->count(), paths.size());
+    QCOMPARE(s->m_documentTabs->count(), paths.size());
 }
 
 QTEST_MAIN(MainShellTest)

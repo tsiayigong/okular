@@ -20,7 +20,6 @@
 
 #include <KActionCollection>
 #include <KLocalizedString>
-#include <KTitleWidget>
 
 // local includes
 #include "core/area.h"
@@ -40,12 +39,7 @@ ThumbnailsBox::ThumbnailsBox(QWidget *parent)
 {
     QVBoxLayout *vbox = new QVBoxLayout(this);
     vbox->setSpacing(0);
-
-    KTitleWidget *titleWidget = new KTitleWidget(this);
-    titleWidget->setLevel(4);
-    titleWidget->setText(i18n("Thumbnails"));
-    vbox->addWidget(titleWidget);
-    vbox->setAlignment(titleWidget, Qt::AlignHCenter);
+    vbox->setContentsMargins(8, 8, 8, 0);
 }
 
 QSize ThumbnailsBox::sizeHint() const
@@ -262,6 +256,7 @@ ThumbnailList::ThumbnailList(QWidget *parent, Okular::Document *document)
     viewport()->setBackgroundRole(QPalette::Base);
 
     setWidget(d);
+    d->setAutoFillBackground(false);
     // widget setup: can be focused by mouse click (not wheel nor tab)
     widget()->setFocusPolicy(Qt::ClickFocus);
     widget()->show();
@@ -716,7 +711,7 @@ ThumbnailWidget::ThumbnailWidget(ThumbnailListPrivate *parent, const Okular::Pag
     , m_pixmapHeight(10)
 {
     m_labelNumber = m_page->number() + 1;
-    m_labelHeight = QFontMetrics(m_parent->font()).height();
+    m_labelHeight = QFontMetrics(m_parent->font()).height() + 10;
 }
 
 void ThumbnailWidget::resizeFitWidth(int width)
@@ -937,32 +932,31 @@ void ThumbnailWidget::paint(QPainter &p, const QRect _clipRect)
     QRect clipRect = _clipRect;
     const QPalette pal = m_parent->palette();
 
-    // draw the bottom label + highlight mark
-    const QColor fillColor = m_selected ? pal.color(QPalette::Active, QPalette::Highlight) : pal.color(QPalette::Active, QPalette::Base);
-    p.fillRect(clipRect, fillColor);
-    p.setPen(m_selected ? pal.color(QPalette::Active, QPalette::HighlightedText) : pal.color(QPalette::Active, QPalette::Text));
-    p.drawText(0, m_pixmapHeight + (m_margin - 3), itemWidth, m_labelHeight, Qt::AlignCenter, QString::number(m_labelNumber));
+    p.setRenderHint(QPainter::Antialiasing);
+    const QString number = QString::number(m_labelNumber);
+    const int badgeWidth = QFontMetrics(m_parent->font()).horizontalAdvance(number) + 14;
+    const QRectF badge((itemWidth - badgeWidth) / 2.0, m_pixmapHeight + m_margin, badgeWidth, m_labelHeight - 2);
+    if (m_selected) {
+        p.setPen(Qt::NoPen);
+        p.setBrush(pal.color(QPalette::Highlight));
+        p.drawRoundedRect(badge, 4, 4);
+    }
+    p.setPen(pal.color(m_selected ? QPalette::HighlightedText : QPalette::PlaceholderText));
+    p.drawText(badge, Qt::AlignCenter, number);
 
-    // draw page outline and pixmap
     if (clipRect.top() < m_pixmapHeight + m_margin) {
-        // if page is bookmarked draw a colored border
         const bool isBookmarked = m_parent->m_document->bookmarkManager()->isBookmarked(pageNumber());
-        // draw the inner rect
-        p.setPen(isBookmarked ? QColor(0xFF8000) : Qt::black);
-        p.drawRect(m_margin / 2 - 1, m_margin / 2 - 1, m_pixmapWidth + 1, m_pixmapHeight + 1);
-        // draw the clear rect
-        p.setPen(isBookmarked ? QColor(0x804000) : pal.color(QPalette::Active, QPalette::Base));
-        // draw the bottom and right shadow edges
-        if (!isBookmarked) {
-            int left, right, bottom, top;
-            left = m_margin / 2 + 1;
-            right = m_margin / 2 + m_pixmapWidth + 1;
-            bottom = m_pixmapHeight + m_margin / 2 + 1;
-            top = m_margin / 2 + 1;
-            p.setPen(Qt::gray);
-            p.drawLine(left, bottom, right, bottom);
-            p.drawLine(right, top, right, bottom);
+        QColor border = pal.color(QPalette::WindowText);
+        border.setAlpha(40);
+        if (m_selected) {
+            border = pal.color(QPalette::Highlight);
+        } else if (isBookmarked) {
+            border = QColor(0xFF8000);
         }
+        const QRectF paper(m_margin / 2.0, m_margin / 2.0, m_pixmapWidth, m_pixmapHeight);
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(border, m_selected ? 2.0 : 1.0));
+        p.drawRoundedRect(paper.adjusted(-2.5, -2.5, 2.5, 2.5), 4, 4);
 
         // draw the page using the shared PagePainter class
         p.translate(m_margin / 2.0, m_margin / 2.0);
@@ -975,8 +969,10 @@ void ThumbnailWidget::paint(QPainter &p, const QRect _clipRect)
 
         if (!m_visibleRect.isNull()) {
             p.save();
-            p.setPen(QColor(255, 255, 0, 200));
-            p.setBrush(QColor(0, 0, 0, 100));
+            QColor visibleBorder = pal.color(QPalette::Highlight);
+            visibleBorder.setAlpha(150);
+            p.setPen(visibleBorder);
+            p.setBrush(Qt::NoBrush);
             p.drawRect(m_visibleRect.geometry(m_pixmapWidth, m_pixmapHeight).adjusted(0, 0, -1, -1));
             p.restore();
         }

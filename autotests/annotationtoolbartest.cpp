@@ -10,7 +10,6 @@
 
 #include <QMenu>
 #include <QTabBar>
-#include <QTabWidget>
 #include <QToolBar>
 #include <QWidget>
 
@@ -49,9 +48,9 @@ class AnnotationToolBarTest : public QObject, public Okular::PartTest
 
 public:
     static void initMain();
-    static QTabWidget *tabWidget(Shell *s)
+    static QTabBar *tabWidget(Shell *s)
     {
-        return s->m_tabWidget;
+        return s->m_documentTabs;
     }
 
 private Q_SLOTS:
@@ -142,7 +141,7 @@ void AnnotationToolBarTest::testAnnotationToolBar()
 
     QVERIFY(QTest::qWaitForWindowExposed(s));
     QFETCH(int, tabIndex);
-    s->m_tabWidget->tabBar()->setCurrentIndex(tabIndex);
+    s->m_documentTabs->setCurrentIndex(tabIndex);
     Okular::Part *part = dynamic_cast<Okular::Part *>(s->m_tabs[tabIndex].part);
     QVERIFY(part);
 

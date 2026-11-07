@@ -12,9 +12,10 @@
 #include <QToolBar>
 #include <QWidget>
 
-ToolbarAutoHide::ToolbarAutoHide(QMainWindow *window)
+ToolbarAutoHide::ToolbarAutoHide(QMainWindow *window, QToolBar *documentTabBar)
     : QObject(window)
     , m_window(window)
+    , m_documentTabBar(documentTabBar)
     , m_hotZone(new QWidget(window))
     , m_handle(new QWidget(m_hotZone))
 {
@@ -57,16 +58,13 @@ void ToolbarAutoHide::setEnabled(bool enabled)
         return;
     }
     if (enabled) {
-        const auto area = m_window->toolBarArea(m_toolbar);
-        if (area != Qt::NoToolBarArea) {
-            m_area = area;
-        }
         m_window->removeToolBar(m_toolbar);
         m_toolbar->hide();
         updateGeometry();
     } else {
         m_hotZone->hide();
-        m_window->addToolBar(m_area, m_toolbar);
+        m_window->insertToolBar(m_documentTabBar, m_toolbar);
+        m_window->insertToolBarBreak(m_documentTabBar);
         m_toolbar->show();
     }
 }
@@ -82,11 +80,12 @@ void ToolbarAutoHide::updateGeometry()
         m_hotZone->hide();
         return;
     }
-    const QPoint topLeft = m_document->mapTo(m_window, QPoint(0, 0));
-    m_hotZone->setGeometry(QRect(topLeft, QSize(m_document->width(), 8)));
+    const QPoint topLeft(m_window->contentsRect().left(), m_document->mapTo(m_window, QPoint(0, 0)).y());
+    const int width = m_window->contentsRect().width();
+    m_hotZone->setGeometry(QRect(topLeft, QSize(width, 8)));
     m_handle->move((m_hotZone->width() - m_handle->width()) / 2, 3);
     m_hotZone->setVisible(m_document->isVisible());
-    m_toolbar->setGeometry(QRect(topLeft, QSize(m_document->width(), m_toolbar->sizeHint().height())));
+    m_toolbar->setGeometry(QRect(topLeft, QSize(width, m_toolbar->sizeHint().height())));
     m_hotZone->raise();
     if (m_toolbar->isVisible()) {
         m_toolbar->raise();

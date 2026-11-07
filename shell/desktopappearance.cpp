@@ -78,6 +78,7 @@ void DesktopAppearance::apply()
         QMenu::separator { height: 1px; background: @line; margin: 4px 8px; }
         QToolBar { background: @chrome; border: 0; border-bottom: 1px solid @line; spacing: 4px; padding: 4px 8px; }
         QToolBar::separator { width: 1px; background: @line; margin: 4px 6px; }
+        QToolBar#documentTabBar { padding: 0px 8px; spacing: 4px; }
         QToolButton { border: 1px solid transparent; border-radius: 4px; padding: 4px; }
         QToolButton:hover { background: @hover; }
         QToolButton:checked { background: @selected; border-color: @line; }
@@ -86,6 +87,9 @@ void DesktopAppearance::apply()
         QTabBar::tab { background: transparent; color: @muted; border: 1px solid transparent; padding: 5px 12px; min-width: 90px; max-width: 260px; }
         QTabBar::tab:selected { background: @surface; color: @text; border-color: @line; border-bottom-color: @surface; border-top-left-radius: 4px; border-top-right-radius: 4px; }
         QTabBar::tab:hover:!selected { background: @hover; }
+        QTabBar#sidebarTabs { background: @sidebar; border: 1px solid @line; border-radius: 4px; margin: 8px; }
+        QTabBar#sidebarTabs::tab { min-width: 0; padding: 4px 8px; margin: 2px; border: 0; border-radius: 3px; }
+        QTabBar#sidebarTabs::tab:selected { background: @field; }
         QDockWidget#okular_sidebar { background: @sidebar; border-right: 1px solid @line; }
         QDockWidget#okular_sidebar QAbstractScrollArea { background: @sidebar; border: 0; }
         QPushButton { background: @field; border: 1px solid @line; border-radius: 4px; padding: 5px 12px; }

@@ -53,8 +53,8 @@
 #include <QPointer>
 #include <QScreen>
 #include <QTabBar>
-#include <QTabWidget>
 #include <QTimer>
+#include <QToolButton>
 
 // local includes
 #include "../interfaces/viewerinterface.h"
@@ -247,20 +247,42 @@ Shell::Shell(const QString &serializedOptions)
         m_welcomeScreen->installEventFilter(this);
 
         // Setup tab bar
-        m_tabWidget = new QTabWidget(this);
-        m_tabWidget->setTabsClosable(true);
-        m_tabWidget->setElideMode(Qt::ElideRight);
-        m_tabWidget->setDocumentMode(true);
-        m_tabWidget->setMovable(true);
+        m_documentStack = new QStackedWidget(this);
+        m_centralStackedWidget->addWidget(m_documentStack);
+        m_documentTabBar = new QToolBar(this);
+        m_documentTabBar->setObjectName(QStringLiteral("documentTabBar"));
+        m_documentTabBar->setMovable(false);
+        m_documentTabBar->setFloatable(false);
+        m_documentTabBar->setAllowedAreas(Qt::TopToolBarArea);
+        m_documentTabBar->setFixedHeight(34);
+        m_documentTabs = new QTabBar(m_documentTabBar);
+        m_documentTabs->setObjectName(QStringLiteral("documentTabs"));
+        m_documentTabs->setTabsClosable(true);
+        m_documentTabs->setElideMode(Qt::ElideRight);
+        m_documentTabs->setDocumentMode(true);
+        m_documentTabs->setMovable(true);
+        m_documentTabs->setExpanding(false);
+        m_documentTabs->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-        m_tabWidget->setAcceptDrops(true);
-        m_tabWidget->tabBar()->installEventFilter(this);
+        m_documentTabs->setAcceptDrops(true);
+        m_documentTabs->installEventFilter(this);
 
-        m_centralStackedWidget->addWidget(m_tabWidget);
+        m_documentTabBar->addWidget(m_documentTabs);
+        auto *openTab = new QToolButton(m_documentTabBar);
+        openTab->setIcon(QIcon::fromTheme(QStringLiteral("list-add")));
+        openTab->setToolTip(i18n("Open Document…"));
+        openTab->setAccessibleName(i18n("Open Document…"));
+        connect(openTab, &QToolButton::clicked, this, &Shell::fileOpen);
+        m_documentTabBar->addWidget(openTab);
+        auto *tabSpacer = new QWidget(m_documentTabBar);
+        tabSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        m_documentTabBar->addWidget(tabSpacer);
+        addToolBar(Qt::TopToolBarArea, m_documentTabBar);
+        m_documentTabBar->hide();
 
-        connect(m_tabWidget, &QTabWidget::currentChanged, this, &Shell::setActiveTab);
-        connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &Shell::closeTab);
-        connect(m_tabWidget->tabBar(), &QTabBar::tabMoved, this, &Shell::moveTabData);
+        connect(m_documentTabs, &QTabBar::currentChanged, this, &Shell::setActiveTab);
+        connect(m_documentTabs, &QTabBar::tabCloseRequested, this, &Shell::closeTab);
+        connect(m_documentTabs, &QTabBar::tabMoved, this, &Shell::moveTabData);
 
         m_sidebar = new Sidebar;
         m_sidebar->setObjectName(QStringLiteral("okular_sidebar"));
@@ -287,12 +309,13 @@ Shell::Shell(const QString &serializedOptions)
         setupGUI(Keys | ToolBar | Save);
 
         // NOTE : apply default sidebar width only after calling setupGUI(...)
-        resizeDocks({m_sidebar}, {200}, Qt::Horizontal);
+        resizeDocks({m_sidebar}, {240}, Qt::Horizontal);
 
         m_tabs.append(TabState(firstPart));
-        m_tabWidget->addTab(firstPart->widget(), QString()); // triggers setActiveTab that calls createGUI( part )
+        m_documentStack->addWidget(firstPart->widget());
+        m_documentTabs->addTab(QString()); // triggers setActiveTab that calls createGUI( part )
 
-        m_toolbarAutoHide = new ToolbarAutoHide(this);
+        m_toolbarAutoHide = new ToolbarAutoHide(this, m_documentTabBar);
 
         connectPart(firstPart);
 
@@ -380,10 +403,10 @@ bool Shell::eventFilter(QObject *obj, QEvent *event)
     }
 
     // Handle middle button click events on the tab bar
-    if (obj == m_tabWidget->tabBar() && event->type() == QEvent::MouseButtonRelease) {
+    if (obj == m_documentTabs && event->type() == QEvent::MouseButtonRelease) {
         QMouseEvent *mEvent = static_cast<QMouseEvent *>(event);
         if (mEvent->button() == Qt::MiddleButton) {
-            int tabIndex = m_tabWidget->tabBar()->tabAt(mEvent->pos());
+            int tabIndex = m_documentTabs->tabAt(mEvent->pos());
             if (tabIndex != -1) {
                 closeTab(tabIndex);
                 return true;
@@ -419,7 +442,7 @@ Shell::~Shell()
     }
 #endif // HAVE_DBUS
 
-    delete m_tabWidget;
+    delete m_documentStack;
 }
 
 // Open a new document if we have space for it
@@ -460,7 +483,7 @@ void Shell::openNewlySignedFile(const QString &path, int pageNumber)
     QUrl url = QUrl::fromLocalFile(path);
     url.setFragment(QStringLiteral("page=%1").arg(pageNumber));
 
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     KParts::ReadWritePart *const activePart = m_tabs[activeTab].part;
     activePart->closeUrl(false);
     activePart->openUrl(url);
@@ -495,7 +518,7 @@ void Shell::openUrl(const QUrl &url, const QString &serializedOptions)
 {
     hideWelcomeScreen();
 
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     KParts::ReadWritePart *const activePart = m_tabs[activeTab].part;
     if (!activePart->url().isEmpty()) {
         if (m_unique) {
@@ -511,8 +534,8 @@ void Shell::openUrl(const QUrl &url, const QString &serializedOptions)
             }
         }
     } else {
-        m_tabWidget->setTabText(activeTab, url.fileName());
-        m_tabWidget->setTabToolTip(activeTab, url.fileName());
+        m_documentTabs->setTabText(activeTab, url.fileName());
+        m_documentTabs->setTabToolTip(activeTab, url.fileName());
 
         applyOptionsToPart(activePart, serializedOptions);
         bool openOk = activePart->openUrl(url);
@@ -530,7 +553,7 @@ void Shell::openUrl(const QUrl &url, const QString &serializedOptions)
 
 void Shell::closeUrl()
 {
-    closeTab(m_tabWidget->currentIndex());
+    closeTab(m_documentTabs->currentIndex());
 
     // When closing the current tab two things can happen:
     //  * the focus was on the tab
@@ -539,8 +562,8 @@ void Shell::closeUrl()
     //  * If it was on the tab, logic says it should go back to the next current tab
     //  * If it was on the toolbar, we could leave it there, but since we redo the menus/toolbars for the new tab, it gets kind of lost
     //    so it's easier to set it to the next current tab which also makes sense as consistency
-    if (m_tabWidget->count() >= 0) {
-        KParts::ReadWritePart *const newPart = m_tabs[m_tabWidget->currentIndex()].part;
+    if (m_documentTabs->count() >= 0) {
+        KParts::ReadWritePart *const newPart = m_tabs[m_documentTabs->currentIndex()].part;
         newPart->widget()->setFocus();
     }
 }
@@ -676,7 +699,7 @@ void Shell::saveProperties(KConfigGroup &group)
         urls.append(tab.part->url().url());
     }
     group.writePathEntry(SESSION_URL_KEY, urls);
-    group.writeEntry(SESSION_TAB_KEY, m_tabWidget->currentIndex());
+    group.writeEntry(SESSION_TAB_KEY, m_documentTabs->currentIndex());
 }
 
 void Shell::readProperties(const KConfigGroup &group)
@@ -699,7 +722,7 @@ void Shell::fileOpen()
     // this slot is called whenever the File->Open menu is selected,
     // the Open shortcut is pressed (usually CTRL+O) or the Open toolbar
     // button is clicked
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     if (!m_fileformatsscanned) {
         const KDocumentViewer *const doc = qobject_cast<KDocumentViewer *>(m_tabs[activeTab].part);
         Q_ASSERT(doc);
@@ -806,7 +829,7 @@ void Shell::setCaption(const QString &caption)
 {
     bool modified = false;
 
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     if (activeTab != -1) {
         KParts::ReadWritePart *const activePart = m_tabs[activeTab].part;
         QString tabCaption = activePart->url().fileName();
@@ -817,7 +840,7 @@ void Shell::setCaption(const QString &caption)
             }
         }
 
-        m_tabWidget->setTabText(activeTab, tabCaption);
+        m_documentTabs->setTabText(activeTab, tabCaption);
     }
 
     setCaption(caption, modified);
@@ -840,6 +863,7 @@ void Shell::slotUpdateFullScreen()
 
         m_toolBarWasShown = !toolBar()->isHidden();
         toolBar()->hide();
+        m_documentTabBar->hide();
 
         KToggleFullScreenAction::setFullScreen(this, true);
     } else {
@@ -850,6 +874,7 @@ void Shell::slotUpdateFullScreen()
             toolBar()->show();
         }
         KToggleFullScreenAction::setFullScreen(this, false);
+        m_documentTabBar->setVisible(m_centralStackedWidget->currentWidget() == m_documentStack);
     }
 }
 
@@ -926,7 +951,8 @@ void Shell::setActiveTab(int tab)
         m_showSidebarAction->disconnect(m_sidebar);
     }
 
-    m_tabWidget->setCurrentIndex(tab);
+    m_documentTabs->setCurrentIndex(tab);
+    m_documentStack->setCurrentWidget(m_tabs[tab].part->widget());
 
     // NOTE : createGUI(...) breaks the visibility of the sidebar, so we need
     // to save and restore it
@@ -962,7 +988,7 @@ void Shell::setActiveTab(int tab)
 
 void Shell::applyAppearance()
 {
-    const int tab = m_tabWidget->currentIndex();
+    const int tab = m_documentTabs->currentIndex();
     if (tab < 0 || tab >= m_tabs.size()) {
         return;
     }
@@ -971,6 +997,9 @@ void Shell::applyAppearance()
     KToolBar *mainToolbar = toolBar(QStringLiteral("mainToolBar"));
     mainToolbar->setIconSize(QSize(20, 20));
     mainToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    mainToolbar->setMovable(false);
+    mainToolbar->setAllowedAreas(Qt::TopToolBarArea);
+    mainToolbar->setFixedHeight(40);
     if (m_toolbarAutoHide) {
         m_toolbarAutoHide->attach(mainToolbar, m_tabs[tab].part->widget());
         m_toolbarAutoHide->setEnabled(viewer->autoHideMainToolBar());
@@ -984,6 +1013,8 @@ void Shell::applyAppearance()
         backend->setVisible(false);
     }
     arrangeMenus();
+    m_documentTabBar->layout()->setContentsMargins(0, 0, 0, 0);
+    m_documentTabBar->setVisible(m_centralStackedWidget->currentWidget() == m_documentStack && !isFullScreen());
 }
 
 void Shell::arrangeMenus()
@@ -1049,12 +1080,13 @@ void Shell::closeTab(int tab)
         connect(part, &QObject::destroyed, sideContainer, &QObject::deleteLater);
 
         part->deleteLater();
+        m_documentStack->removeWidget(part->widget());
         m_tabs.removeAt(tab);
-        m_tabWidget->removeTab(tab);
+        m_documentTabs->removeTab(tab);
         m_undoCloseTab->setEnabled(true);
         m_closedTabUrls.append(url);
 
-        if (m_tabWidget->count() == 1) {
+        if (m_documentTabs->count() == 1) {
             m_nextTabAction->setEnabled(false);
             m_prevTabAction->setEnabled(false);
         }
@@ -1067,7 +1099,7 @@ void Shell::closeTab(int tab)
 
 void Shell::openNewTab(const QUrl &url, const QString &serializedOptions)
 {
-    const int previousActiveTab = m_tabWidget->currentIndex();
+    const int previousActiveTab = m_documentTabs->currentIndex();
     KParts::ReadWritePart *const activePart = m_tabs[previousActiveTab].part;
 
     hideWelcomeScreen();
@@ -1098,8 +1130,9 @@ void Shell::openNewTab(const QUrl &url, const QString &serializedOptions)
 
     // Update GUI
     KParts::ReadWritePart *const part = m_tabs[newIndex].part;
-    m_tabWidget->addTab(part->widget(), url.fileName());
-    m_tabWidget->setTabToolTip(newIndex, url.fileName());
+    m_documentStack->addWidget(part->widget());
+    m_documentTabs->addTab(url.fileName());
+    m_documentTabs->setTabToolTip(newIndex, url.fileName());
 
     applyOptionsToPart(part, serializedOptions);
 
@@ -1152,7 +1185,7 @@ void Shell::connectPart(const KParts::ReadWritePart *part)
 
 void Shell::print()
 {
-    QMetaObject::invokeMethod(m_tabs[m_tabWidget->currentIndex()].part, "slotPrint");
+    QMetaObject::invokeMethod(m_tabs[m_documentTabs->currentIndex()].part, "slotPrint");
 }
 
 void Shell::setPrintEnabled(bool enabled)
@@ -1160,7 +1193,7 @@ void Shell::setPrintEnabled(bool enabled)
     int i = findTabIndex(sender());
     if (i != -1) {
         m_tabs[i].printEnabled = enabled;
-        if (i == m_tabWidget->currentIndex()) {
+        if (i == m_documentTabs->currentIndex()) {
             m_printAction->setEnabled(enabled);
         }
     }
@@ -1171,7 +1204,7 @@ void Shell::setCloseEnabled(bool enabled)
     int i = findTabIndex(sender());
     if (i != -1) {
         m_tabs[i].closeEnabled = enabled;
-        if (i == m_tabWidget->currentIndex()) {
+        if (i == m_documentTabs->currentIndex()) {
             m_closeAction->setEnabled(enabled);
         }
     }
@@ -1183,7 +1216,7 @@ void Shell::activateNextTab()
         return;
     }
 
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     const int nextTab = (activeTab == m_tabs.size() - 1) ? 0 : activeTab + 1;
 
     setActiveTab(nextTab);
@@ -1195,7 +1228,7 @@ void Shell::activatePrevTab()
         return;
     }
 
-    const int activeTab = m_tabWidget->currentIndex();
+    const int activeTab = m_documentTabs->currentIndex();
     const int prevTab = (activeTab == 0) ? m_tabs.size() - 1 : activeTab - 1;
 
     setActiveTab(prevTab);
@@ -1220,7 +1253,7 @@ void Shell::setTabIcon(const QMimeType &mimeType)
 {
     int i = findTabIndex(sender());
     if (i != -1) {
-        m_tabWidget->setTabIcon(i, QIcon::fromTheme(mimeType.iconName()));
+        m_documentTabs->setTabIcon(i, QIcon::fromTheme(mimeType.iconName()));
     }
 }
 
@@ -1263,7 +1296,8 @@ void Shell::slotFitWindowToPage(const QSize pageViewSize, const QSize pageSize)
 
 void Shell::hideWelcomeScreen()
 {
-    m_centralStackedWidget->setCurrentWidget(m_tabWidget);
+    m_centralStackedWidget->setCurrentWidget(m_documentStack);
+    m_documentTabBar->setVisible(!isFullScreen());
     m_sidebar->setVisible(m_showSidebarAction->isChecked());
     m_showSidebarAction->setEnabled(true);
 }
@@ -1272,6 +1306,7 @@ void Shell::showWelcomeScreen()
 {
     m_showSidebarAction->setEnabled(false);
     m_centralStackedWidget->setCurrentWidget(m_welcomeScreen);
+    m_documentTabBar->hide();
     m_sidebar->setVisible(false);
 
     refreshRecentsOnWelcomeScreen();

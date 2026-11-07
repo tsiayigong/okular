@@ -15,6 +15,9 @@ The approved reference is the 84-screen prototype at
   acrylic backdrop; packaged Windows rendering remains to be checked.
 - Main toolbar overlay with an 8 px reveal area, delayed hiding, keyboard access,
   and stable document geometry across document and tab changes.
+- Full-width document tabs above the sidebar, an open-document button, and a
+  compact text selector for the sidebar panels. Thumbnails use page outlines
+  and page-number badges to indicate selection.
 - Soft white paper (`#FAFAF8`) shared by document rendering and thumbnails.
 - Appearance settings, three built-in presets, custom preset creation, version 1
   JSON import with preview, accent color, paper material, opacity and blur.
@@ -33,7 +36,7 @@ The approved reference is the 84-screen prototype at
 | Reference screens | Work remaining |
 | --- | --- |
 | 03–06 | Open/password/error/loading presentation |
-| 07–17, 66–71, 83–84 | Full-width document tabs, sidebar controls, reading states, dark surfaces and Windows acrylic validation |
+| 07–17, 66–71, 83–84 | Sidebar panel contents, reading states, dark surfaces and Windows acrylic validation |
 | 18–38 | Restyle and validate the existing annotation, form, signature, attachment, document information, save/export/print/share flows |
 | 39–40, 77–82 | Presentation laser/highlighter, presenter and audience windows, Beamer note layouts, ink retention |
 | 41–55 | Complete the unified settings pages and their shortcuts/toolbars/language integrations |
@@ -47,7 +50,7 @@ Local Qt tests cover real PDF page/thumbnail colors, theme application, toolbar
 geometry, preset creation/application/cancellation, JSON schema validation,
 and cropped material rendering. PDF selection tests cover comment creation,
 undo/redo, save/reopen, and recovery of the selected quote.
-Shell tests also cover menu order across document switches and the recent-file
-open/close/clear flow.
+Shell tests also cover menu order across document switches, tab geometry and
+visibility, close/undo, and the recent-file open/close/clear flow.
 Local captures are under `output/okular-native`.
 Windows runtime and full reference coverage remain pending.
