@@ -31,8 +31,17 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          # Craft's bootstrap treats the runner's Android SDK variables as a
+          # cross-compilation request and selects an unavailable MinSizeRel cache.
+          [Environment]::SetEnvironmentVariable('ANDROID_SDK_ROOT', $null, 'Process')
+          [Environment]::SetEnvironmentVariable('ANDROID_NDK', $null, 'Process')
           Invoke-WebRequest https://raw.githubusercontent.com/KDE/craft/master/setup/CraftBootstrap.py -OutFile "$env:RUNNER_TEMP\CraftBootstrap.py"
-          python "$env:RUNNER_TEMP\CraftBootstrap.py" --prefix $env:CRAFT_ROOT --use-defaults
+          python "$env:RUNNER_TEMP\CraftBootstrap.py" --prefix $env:CRAFT_ROOT --use-defaults *> "$env:RUNNER_TEMP\craft-bootstrap.log"
+          Get-Content "$env:RUNNER_TEMP\craft-bootstrap.log" -Tail 60
+          $settings = Get-Content "$env:CRAFT_ROOT\etc\CraftSettings.ini" -Raw
+          if ($settings -notmatch '(?m)^BuildType\s*=\s*RelWithDebInfo\s*$') {
+            throw 'Craft must use the Windows RelWithDebInfo dependency cache.'
+          }
       - name: Install Windows dependencies
         run: |
           $ErrorActionPreference = 'Stop'
@@ -72,6 +81,22 @@ jobs:
           name: windows-build-logs-${{ github.sha }}
           path: |
             C:\CraftRoot\logs
+            C:\CraftRoot\etc\CraftSettings.ini
+            ${{ runner.temp }}\craft-bootstrap.log
             C:\CraftRoot\build\kde\applications\okular\**\CMakeFiles\CMakeConfigureLog.yaml
           if-no-files-found: ignore
           retention-days: 14
+      - name: Show failure summary
+        if: failure()
+        run: |
+          $log = "$env:RUNNER_TEMP\craft-bootstrap.log"
+          if (Test-Path $log) {
+            Write-Output 'Last bootstrap messages:'
+            Get-Content $log -Tail 100
+          }
+          if (Test-Path "$env:CRAFT_ROOT\logs") {
+            Get-ChildItem "$env:CRAFT_ROOT\logs" -Recurse -Filter make.log |
+              Select-String -Pattern 'fatal error|error (LNK|C)[0-9]+|FAILED:' |
+              Select-Object -Last 20 |
+              ForEach-Object { Write-Output $_.Line }
+          }
