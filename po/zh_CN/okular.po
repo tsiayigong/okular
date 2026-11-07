@@ -6202,3 +6202,30 @@ msgstr "开始阅读"
 
 msgid "Your recently opened documents will appear here."
 msgstr "最近打开的文档会显示在这里。"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Reading"
+msgstr "阅读"
+
+msgid "Page layout and navigation"
+msgstr "调整页面布局、滚动与翻页"
+
+msgid "Pages and Zoom"
+msgstr "页面与缩放"
+
+msgid "Scrolling and Navigation"
+msgstr "滚动与导航"
+
+msgid "Opening Documents"
+msgstr "打开文档"
+
+msgid "Files and Notifications"
+msgstr "文件与提示"
+
+msgid "Window Title"
+msgstr "窗口标题"
+
+msgid "Reading Background"
+msgstr "阅读背景"

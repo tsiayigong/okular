@@ -21,6 +21,9 @@ The approved reference is the 84-screen prototype at
 - Soft white paper (`#FAFAF8`) shared by document rendering and thumbnails.
 - Appearance settings, three built-in presets, custom preset creation, version 1
   JSON import with preview, accent color, paper material, opacity and blur.
+- Searchable settings navigation, separate General and Reading pages, grouped
+  controls and a shared page heading. Reading preferences retain their existing
+  persisted values, and the outer canvas color is available under Appearance.
 - Paper materials use the same renderer in their preview, pages and thumbnails.
   Acrylic combines a tinted scene or a selected local image with blur. Explicit
   PDF backgrounds are handled by the planned experimental background processor.
@@ -51,6 +54,9 @@ geometry, preset creation/application/cancellation, JSON schema validation,
 and cropped material rendering. PDF selection tests cover comment creation,
 undo/redo, save/reopen, and recovery of the selected quote.
 Shell tests also cover menu order across document switches, tab geometry and
-visibility, close/undo, and the recent-file open/close/clear flow.
+visibility, close/undo, the recent-file open/close/clear flow, and finding,
+applying and cancelling reading preferences through the settings window.
 Local captures are under `output/okular-native`.
-Windows runtime and full reference coverage remain pending.
+Windows build 42374041687 passed compilation, executable version checking and
+standalone packaging at commit `1ecd739`. Packaged GUI rendering and full
+reference coverage remain pending.

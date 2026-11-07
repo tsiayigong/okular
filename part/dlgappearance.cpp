@@ -123,6 +123,18 @@ DlgAppearance::DlgAppearance(QWidget *parent, QWidget *accessibility)
     auto *hint = new QLabel(i18n("Move the pointer to the top edge of the document to show the toolbar. Press Ctrl+Alt+T to focus it."), this);
     hint->setWordWrap(true);
     interfaceForm->addRow(hint);
+    auto *backgroundRow = new QHBoxLayout;
+    auto *useBackground = new QCheckBox(i18nc("@label:listbox Config dialog, general page", "Use custom background color:"), this);
+    useBackground->setObjectName(QStringLiteral("kcfg_UseCustomBackgroundColor"));
+    auto *backgroundColor = new KColorButton(this);
+    backgroundColor->setObjectName(QStringLiteral("kcfg_BackgroundColor"));
+    backgroundColor->setFixedWidth(64);
+    backgroundColor->setEnabled(false);
+    connect(useBackground, &QCheckBox::toggled, backgroundColor, &QWidget::setEnabled);
+    backgroundRow->addWidget(useBackground);
+    backgroundRow->addStretch();
+    backgroundRow->addWidget(backgroundColor);
+    interfaceForm->addRow(backgroundRow);
     layout->addWidget(interfaceGroup);
 
     auto *paperGroup = new QGroupBox(i18n("Paper Background"), this);

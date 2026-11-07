@@ -154,7 +154,8 @@ if (BUILD_DESKTOP)
         set(HAVE_DBUS 1)
     endif()
 
-    find_package(KF6 ${KF_REQUIRED_VERSION} REQUIRED COMPONENTS Parts ColorScheme Crash IconThemes TextWidgets WidgetsAddons)
+    find_package(KF6 ${KF_REQUIRED_VERSION} REQUIRED COMPONENTS Parts ColorScheme Crash IconThemes TextWidgets)
+    find_package(KF6WidgetsAddons 6.26.0 CONFIG REQUIRED)
 
     find_package(KF6Purpose)
     set_okular_optional_package_properties(KF6Purpose PROPERTIES
@@ -504,6 +505,7 @@ if(BUILD_DESKTOP)
     part/preferencesdialog.cpp
     part/dlgaccessibility.cpp
     part/dlgappearance.cpp
+    part/dlgreading.cpp
     part/dlgdebug.cpp
     part/dlgeditor.cpp
     part/dlggeneral.cpp

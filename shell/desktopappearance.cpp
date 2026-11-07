@@ -101,6 +101,13 @@ void DesktopAppearance::apply()
         QComboBox { padding-right: 22px; }
         QComboBox::drop-down { border: 0; width: 20px; }
         QDialog { background: @surface; }
+        QDialog#preferences QListView { background: @sidebar; border: 0; padding: 8px; min-width: 190px; max-width: 220px; }
+        QDialog#preferences QListView::item { padding: 9px 10px; margin-bottom: 3px; border-radius: 4px; }
+        QDialog#preferences QListView::item:selected { background: #0A84FF; color: white; }
+        QDialog#preferences QListView::item:hover:!selected { background: @hover; }
+        QDialog#preferences QWidget[objectName="KPageView::Search"] { background: @sidebar; }
+        QDialog#preferences QGroupBox { background: @field; border: 1px solid @line; border-radius: 5px; margin-top: 18px; padding: 12px; }
+        QDialog#preferences QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 2px; }
         QFrame#textSelectionActions { background: @surface; border: 1px solid @line; border-radius: 6px; }
         QFrame#AnnotWindow { background: @surface; border: 1px solid @line; border-radius: 6px; }
         QFrame#AnnotWindow QTextEdit, QFrame#AnnotWindow QPlainTextEdit { background: @field; border: 1px solid @line; border-radius: 4px; padding: 5px; }
@@ -118,6 +125,7 @@ void DesktopAppearance::apply()
         QMainWindow[nativeAcrylic="true"] QDockWidget#okular_sidebar,
         QMainWindow[nativeAcrylic="true"] QDockWidget#okular_sidebar QAbstractScrollArea { background: @glassSidebar; }
         QMenu[nativeAcrylic="true"], QDialog[nativeAcrylic="true"] { background: @glassSurface; }
+        QDialog#preferences[nativeAcrylic="true"] QListView { background: @glassSidebar; }
     )");
     css.replace(QLatin1String("@surface"), surface.name());
     css.replace(QLatin1String("#0A84FF"), accent.name());

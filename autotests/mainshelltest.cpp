@@ -28,11 +28,13 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenuBar>
 #include <QMenu>
 #include <QPrintDialog>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QTemporaryFile>
@@ -143,6 +145,7 @@ private Q_SLOTS:
     void testOpenTheSameFileSeveralTimes();
     void testDesktopAppearance();
     void testAppearanceLibrary();
+    void testSettingsNavigation();
     void testWelcomeScreen();
 
 private:
@@ -337,6 +340,54 @@ void MainShellTest::testDesktopAppearance()
     QVERIFY(applicationMenu->actions().contains(activePart->actionCollection()->action(QStringLiteral("options_configure"))));
     QCOMPARE(shell->toolBarArea(shell->toolBar()), Qt::NoToolBarArea);
     QVERIFY(!shell->toolBar()->isVisible());
+}
+
+void MainShellTest::testSettingsNavigation()
+{
+    auto *shell = new Shell;
+    shell->resize(1280, 850);
+    shell->show();
+    QVERIFY(shell->openDocument(QUrl::fromLocalFile(QStringLiteral(KDESRCDIR "data/file1.pdf")), QString()));
+    auto *part = qobject_cast<Okular::Part *>(shell->m_tabs[0].part);
+    QVERIFY(QMetaObject::invokeMethod(part, "slotPreferences"));
+    auto *dialog = shell->findChild<QDialog *>(QStringLiteral("preferences"));
+    QVERIFY(dialog);
+    auto *searchContainer = dialog->findChild<QWidget *>(QStringLiteral("KPageView::Search"));
+    QVERIFY(searchContainer);
+    auto *search = searchContainer->findChild<QLineEdit *>();
+    QVERIFY(search);
+    QTRY_VERIFY(search->isVisible());
+    auto *zoom = dialog->findChild<QComboBox *>(QStringLiteral("kcfg_ZoomMode"));
+    auto *custom = dialog->findChild<QSpinBox *>(QStringLiteral("kcfg_CustomZoomFactor"));
+    QVERIFY(zoom);
+    QVERIFY(custom);
+    search->setText(i18nc("label:listbox Config dialog, general page, default zoom", "Default zoom:"));
+    QTRY_VERIFY(zoom->isVisible());
+    zoom->setCurrentIndex(4);
+    QTRY_VERIFY(custom->isVisible());
+    custom->setValue(175);
+    auto *buttons = dialog->findChild<QDialogButtonBox *>();
+    QTest::mouseClick(buttons->button(QDialogButtonBox::Apply), Qt::LeftButton);
+    QCOMPARE(Okular::Settings::zoomMode(), 4u);
+    QCOMPARE(Okular::Settings::customZoomFactor(), 175u);
+    search->clear();
+    const QString capture = qEnvironmentVariable("OKULAR_TEST_CAPTURE_DIR");
+    if (!capture.isEmpty()) {
+        QTest::qWait(500);
+        QVERIFY(dialog->grab().save(capture + QStringLiteral("/native-settings-reading.png")));
+    }
+    custom->setValue(200);
+    QTest::mouseClick(buttons->button(QDialogButtonBox::Cancel), Qt::LeftButton);
+    QCOMPARE(Okular::Settings::customZoomFactor(), 175u);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+
+    QVERIFY(QMetaObject::invokeMethod(part, "slotPreferences"));
+    dialog = shell->findChild<QDialog *>(QStringLiteral("preferences"));
+    QVERIFY(dialog);
+    QCOMPARE(dialog->findChild<QSpinBox *>(QStringLiteral("kcfg_CustomZoomFactor"))->value(), 175);
+    QCOMPARE(dialog->findChildren<QWidget *>(QStringLiteral("kcfg_SmoothScrolling")).size(), 1);
+    QCOMPARE(dialog->findChildren<QWidget *>(QStringLiteral("kcfg_BackgroundColor")).size(), 1);
+    dialog->reject();
 }
 
 void MainShellTest::testWelcomeScreen()
